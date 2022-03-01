@@ -90,39 +90,64 @@ rndm_centroids=function(k,data){
      X[i,j]=generate_random(data[,j]) 
     }
   }
-  X[,ncol(data)+1]=letters[1:k]
-  X = data.frame(X, stringsAsFactors = FALSE)
+  X[,ncol(data)+1]=as.factor(letters[1:k])
+  #X = data.frame(X, stringsAsFactors = FALSE)
   #Now we have one centroid for each column on X
   return(X)
 }
 
+euclidian=function(a,b){
+  sqrt(sum((a-b)^2))
+}
+
 compute_distances=function(X,data){
-  data$cluster=NA
-  data$error=NA
-  for (i in 1:nrow(X)) {
-    for(j in 1:ncol(X)-1){
-      x[j]=euclidiana(X[i,j],data[i,j])
+  x=c()
+  data$error=NULL
+  data$cluster=NULL
+  for (i in 1:nrow(data)) {
+    for(j in 1:nrow(X)){
+      x[j]=euclidian(X[j,-8],data[i,1:7])
     }
-    data[i]$error=min(x)
-    data$cluster[i]=which(x==min(x))
+    data$error[i]<-min(x)
+    data$cluster[i]<-which(x==min(x))
   }
+  print(head(data))
+  assign("data_wf_scaled",data,.GlobalEnv)
 }
 
-euclidiana_v=function(a, vector){
-  sqrt(sum((a-b)^2))
-  t=0
-  for(i in 1:length(vector)){
-    t=(a-vector[i])^2 + t
-  }
-  return(sqrt(t))
-}
-
-euclidiana_p=function(a,b){
-  sqrt(sum((a-b)^2))
+recode_clusters=function(data){
+  centroids= data %>% group_by(cluster) %>% 
+    summarize(price=mean(price),
+              speed=mean(speed),
+              hd=mean(hd),
+              ram=mean(ram),
+              screen=mean(screen),
+              cores=mean(cores),
+              trend=mean(trend)) %>% 
+    mutate(n_centroide=cluster) %>% 
+    select(-cluster) %>% 
+    ungroup() %>% as.data.frame(.)
+  
 }
 
 X=rndm_centroids(3,data_wf_scaled)
 
-compute_distances(X,data_wf_scaled)
+error=c(0,sum(new_data$error))
 
-euclidiana(X[1,1],data_wf_scaled[,4])
+i=2
+while(round(error[i],2)!= round(error[i-1],2)){
+  compute_distances(X,as.data.frame(data_wf_scaled))
+  error=c(error,sum(data_wf_scaled$error))
+  X=recode_clusters(data_wf_scaled)
+  i=i+1
+}
+
+
+library(ggplot2)
+
+ggplot(data_wf_scaled,aes(x=hd,y=speed,color=as.factor(cluster))) + geom_point()
+
+
+
+
+
