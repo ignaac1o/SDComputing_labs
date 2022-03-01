@@ -69,3 +69,60 @@ fviz_cluster(knn, data = data_wo_factors,
 #8.- Print a heat map using the values of the clusters centroids.
 
 
+
+
+
+
+############## K means function
+
+data_wf_scaled=scale(data_wo_factors)
+
+#Used to generate random numbers
+generate_random=function(vector){
+  return(runif(1,min(vector),max(vector)))
+}
+
+rndm_centroids=function(k,data){
+  X=matrix(nrow=k,ncol=ncol(data)+1)
+  clusters=letters[1:k]
+  for (i in 1:nrow(X)) {
+    for(j in 1:ncol(data)){
+     X[i,j]=generate_random(data[,j]) 
+    }
+  }
+  X[,ncol(data)+1]=letters[1:k]
+  X = data.frame(X, stringsAsFactors = FALSE)
+  #Now we have one centroid for each column on X
+  return(X)
+}
+
+compute_distances=function(X,data){
+  data$cluster=NA
+  data$error=NA
+  for (i in 1:nrow(X)) {
+    for(j in 1:ncol(X)-1){
+      x[j]=euclidiana(X[i,j],data[i,j])
+    }
+    data[i]$error=min(x)
+    data$cluster[i]=which(x==min(x))
+  }
+}
+
+euclidiana_v=function(a, vector){
+  sqrt(sum((a-b)^2))
+  t=0
+  for(i in 1:length(vector)){
+    t=(a-vector[i])^2 + t
+  }
+  return(sqrt(t))
+}
+
+euclidiana_p=function(a,b){
+  sqrt(sum((a-b)^2))
+}
+
+X=rndm_centroids(3,data_wf_scaled)
+
+compute_distances(X,data_wf_scaled)
+
+euclidiana(X[1,1],data_wf_scaled[,4])
