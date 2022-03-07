@@ -16,7 +16,7 @@ summary(data5k)
 
 #kmeans only work with numeric vectors
 data_wo_factors = data5k %>% dplyr::select(c(-cd,-laptop))
-
+View(data_wo_factors)
 
 ############## K means DIY Process #####################
 
@@ -45,7 +45,7 @@ knn_diy=function(data,k){
   X[,ncol(knn_data)+1]=as.factor(letters[1:k])
   
   
-  #Compute Disctances
+  #Compute Distances
   x=c()
   knn_data$error=NULL
   knn_data$cluster=NULL
@@ -107,6 +107,8 @@ knn_diy=function(data,k){
 
 
 knn_data=knn_diy(data_wo_factors,2)
+View(knn_data)
+knn_data2=knn_diy(data_wo_factors,3)
 
 
 
@@ -123,7 +125,7 @@ obtain_k_optimal=function(kmax){
   return(knn)
 }
 
-knn=obtain_k_optimal(7)
+knn=obtain_k_optimal(5)
 
 x=NULL
 y=NULL
@@ -143,8 +145,7 @@ df=data.frame(x,y)
 
 # 4.-Measure time
 
-microbenchmark(knn_diy(data_wo_factors,2))
-
+microbenchmark(knn_diy(data_wo_factors,2), kmeans(data_wo_factors,2), times = 1)
 # 5.- Plot the results of the elbow graph.
 
 ggplot(data = df, aes(x=x,y=y)) + geom_point() + geom_line() 
@@ -155,22 +156,30 @@ ggplot(knn_data,aes(x=price,y=speed,color=as.factor(cluster))) + geom_point()
 
 # 7.- Find the cluster with the highest average price and print it.
 
+ind1 <- which(knn_data$cluster==1)
+price1 <- knn_data$price[ind1]
+mean(price1)
+ind2 <- which(knn_data$cluster==2)
+price2 <- knn_data$price[ind2]
+mean(price2)
+
+hpricefun <- function(datos){
+  x = list()
+  n = ncol(datos)
+  datos[,n] %<>% as.factor()
+  k = length(levels(datos[,n]))
+  for(i in 1:k){
+    ind1 <- which(knn_data$cluster==i)
+    price1 <- knn_data$price[ind1]
+    x[i]=mean(price1)
+  }
+  return(x)
+}
+
+hpricefun(knn_data)
+
+
 #8.- Print a heat map using the values of the clusters centroids.
-
-
-
-
-
-
-
-wjnñqnwqwevqw
-qwevrpeknq
-vkentle
-
-erbowerknt
-nekrt
-
-ervt´wlekrv
 
 
 
