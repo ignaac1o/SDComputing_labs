@@ -2,7 +2,10 @@ library(plyr)
 library(dplyr)
 library(factoextra)
 library(magrittr)
+library(ggplot2)
+library(microbenchmark)
 
+set.seed(13)
 
 data5k=read.csv(file = "computers5k.csv",header = T)
 data5k$id = NULL
@@ -14,55 +17,141 @@ summary(data5k)
 #kmeans only work with numeric vectors
 data_wo_factors = data5k %>% dplyr::select(c(-cd,-laptop))
 
-# 1.- Construct the elbow graph and find the optimal clusters number (k).
-set.seed(123)
-par(mfrow=c(1,2))
-fviz_nbclust(data_wo_factors, kmeans, method = "wss") + geom_vline(xintercept = 2, linetype = 2)
-fviz_nbclust(data_wo_factors, kmeans, method = "silhouette") 
 
-#both methods suggest 2 clusters as the optimal number.
+############## K means DIY Process #####################
+
+#Used to generate random numbers
+generate_random=function(vector){
+  return(runif(1,min(vector),max(vector)))
+}
+
+euclidian=function(a,b){
+  sqrt(sum((a-b)^2))
+}
+
+knn_diy=function(data,k){
+  
+  #Scale data
+  knn_data=as.data.frame(scale(data))
+  
+  #Generate random centroids
+  X=matrix(nrow=k,ncol=ncol(knn_data)+1)
+  clusters=letters[1:k]
+  for (i in 1:nrow(X)) {
+    for(j in 1:ncol(knn_data)){
+      X[i,j]=generate_random(knn_data[,j]) 
+    }
+  }
+  X[,ncol(knn_data)+1]=as.factor(letters[1:k])
+  
+  
+  #Compute Disctances
+  x=c()
+  knn_data$error=NULL
+  knn_data$cluster=NULL
+  for (i in 1:nrow(knn_data)) {
+    for(j in 1:nrow(X)){
+      x[j]=euclidian(X[j,-ncol(X)],knn_data[i,1:(ncol(knn_data)-2)])
+    }
+    knn_data$error[i]<-min(x)
+    knn_data$cluster[i]<-which(x==min(x))
+  }
+  #
+  print(head(knn_data))
+  #
+  
+  #Check errors
+  error=c(0,sum(knn_data$error))
+  e=2
+  
+  #
+  print(error)
+  #
+  
+  while(round(error[e],2)!= round(error[e-1],2)){
+    #Compute distances
+    x=c()
+    for (i in 1:nrow(knn_data)) {
+      for(j in 1:nrow(X)){
+        x[j]=euclidian(X[j,-ncol(X)],knn_data[i,1:(ncol(knn_data)-2)])
+      }
+      knn_data$error[i]<-min(x)
+      knn_data$cluster[i]<-which(x==min(x))
+    }
+    
+    #Write error
+    error=c(error,sum(knn_data$error))
+    
+    #Recode Clusters
+    centroids= knn_data %>% group_by(cluster) %>% 
+      summarize(price=mean(price),
+                speed=mean(speed),
+                hd=mean(hd),
+                ram=mean(ram),
+                screen=mean(screen),
+                cores=mean(cores),
+                trend=mean(trend)) %>% 
+      mutate(n_centroide=cluster) %>% 
+      select(-cluster) %>% 
+      ungroup() %>% as.data.frame(.)
+    
+    #Next iteration
+    e=e+1
+    #
+    print(e)
+    #
+  }
+  
+  return(knn_data)
+}
+
+
+knn_data=knn_diy(data_wo_factors,2)
+
+
+
+# 1.- Construct the elbow graph and find the optimal clusters number (k).
+
 
 # 2.- Implement the k-means algorithm
 
-obtain_k_optimal=function(){
+obtain_k_optimal=function(kmax){
   knn=NULL
-  for (i in 1:10) {
-    knn[i]=list(kmeans(x = data_wo_factors,centers = i))
+  for (i in 1:kmax) {
+    knn[i]=list(knn_diy(data_wo_factors,i))
   }
   return(knn)
 }
 
-knn=obtain_k_optimal()
+knn=obtain_k_optimal(7)
 
 x=NULL
 y=NULL
-for (i in 1:10) {
-  y[i]=knn[[i]]$tot.withinss
+for (i in 1:length(knn)) {
+  y[i]=sum(knn[[i]]$error)
   x[i]=i
 }
 
 df=data.frame(x,y)
 
-ggplot(data = df, aes(x=x,y=y)) + geom_point() + geom_line() 
+
 
 
 # 3.- Cluster the data using the optimum value using k-means.
 
+#The plot suggest k=5
+
 # 4.-Measure time
 
-library(microbenchmark)
-time=microbenchmark(kmeans(x = data_wo_factors,centers = 2,iter.max = 10))
+microbenchmark(knn_diy(data_wo_factors,2))
 
 # 5.- Plot the results of the elbow graph.
 
+ggplot(data = df, aes(x=x,y=y)) + geom_point() + geom_line() 
+
 # 6.- Plot the first 2 dimensions of the clusters
 
-fviz_cluster(knn, data = data_wo_factors,
-             palette = c("#2E9FDF", "#E7B800","#00AFBB"), 
-             geom = "point",
-             ellipse.type = "convex", 
-             ggtheme = theme_bw()
-)
+ggplot(knn_data,aes(x=price,y=speed,color=as.factor(cluster))) + geom_point()
 
 # 7.- Find the cluster with the highest average price and print it.
 
@@ -73,80 +162,15 @@ fviz_cluster(knn, data = data_wo_factors,
 
 
 
-############## K means function
 
-data_wf_scaled=scale(data_wo_factors)
+wjnñqnwqwevqw
+qwevrpeknq
+vkentle
 
-#Used to generate random numbers
-generate_random=function(vector){
-  return(runif(1,min(vector),max(vector)))
-}
+erbowerknt
+nekrt
 
-rndm_centroids=function(k,data){
-  X=matrix(nrow=k,ncol=ncol(data)+1)
-  clusters=letters[1:k]
-  for (i in 1:nrow(X)) {
-    for(j in 1:ncol(data)){
-     X[i,j]=generate_random(data[,j]) 
-    }
-  }
-  X[,ncol(data)+1]=as.factor(letters[1:k])
-  #X = data.frame(X, stringsAsFactors = FALSE)
-  #Now we have one centroid for each column on X
-  return(X)
-}
-
-euclidian=function(a,b){
-  sqrt(sum((a-b)^2))
-}
-
-compute_distances=function(X,data){
-  x=c()
-  data$error=NULL
-  data$cluster=NULL
-  for (i in 1:nrow(data)) {
-    for(j in 1:nrow(X)){
-      x[j]=euclidian(X[j,-8],data[i,1:7])
-    }
-    data$error[i]<-min(x)
-    data$cluster[i]<-which(x==min(x))
-  }
-  print(head(data))
-  assign("data_wf_scaled",data,.GlobalEnv)
-}
-
-recode_clusters=function(data){
-  centroids= data %>% group_by(cluster) %>% 
-    summarize(price=mean(price),
-              speed=mean(speed),
-              hd=mean(hd),
-              ram=mean(ram),
-              screen=mean(screen),
-              cores=mean(cores),
-              trend=mean(trend)) %>% 
-    mutate(n_centroide=cluster) %>% 
-    select(-cluster) %>% 
-    ungroup() %>% as.data.frame(.)
-  
-}
-
-X=rndm_centroids(3,data_wf_scaled)
-
-error=c(0,sum(new_data$error))
-
-i=2
-while(round(error[i],2)!= round(error[i-1],2)){
-  compute_distances(X,as.data.frame(data_wf_scaled))
-  error=c(error,sum(data_wf_scaled$error))
-  X=recode_clusters(data_wf_scaled)
-  i=i+1
-}
-
-
-library(ggplot2)
-
-ggplot(data_wf_scaled,aes(x=hd,y=speed,color=as.factor(cluster))) + geom_point()
-
+ervt´wlekrv
 
 
 
