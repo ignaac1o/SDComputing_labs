@@ -107,8 +107,7 @@ knn_diy=function(data,k){
 
 
 knn_data=knn_diy(data_wo_factors,2)
-View(knn_data)
-knn_data2=knn_diy(data_wo_factors,3)
+
 
 
 
@@ -146,6 +145,7 @@ df=data.frame(x,y)
 # 4.-Measure time
 
 microbenchmark(knn_diy(data_wo_factors,2), kmeans(data_wo_factors,2), times = 1)
+
 # 5.- Plot the results of the elbow graph.
 
 ggplot(data = df, aes(x=x,y=y)) + geom_point() + geom_line() 
@@ -181,6 +181,10 @@ hpricefun(knn_data)
 
 #8.- Print a heat map using the values of the clusters centroids.
 
-
+datamatrix <- data_wo_factors %<>% as.matrix()
+datosknnmatrix <- knn_data[,-c(8,9)] %<>% as.matrix()
+par(mfrow = c(1, 2))
+image(t(datamatrix)[, nrow(datamatrix):1], yaxt = "n", main = "Original Data")
+image(t(datamatrix)[, order(knn_data$cluster)], yaxt = "n", main = "Clustered Data")
 
 
