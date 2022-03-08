@@ -16,7 +16,6 @@ summary(data5k)
 
 #kmeans only work with numeric vectors
 data_wo_factors = data5k %>% dplyr::select(c(-cd,-laptop))
-View(data_wo_factors)
 
 ############## K means DIY Process #####################
 
@@ -106,7 +105,7 @@ knn_diy=function(data,k){
 }
 
 
-knn_data=knn_diy(data_wo_factors,2)
+microbenchmark(knn_diy(data_wo_factors,2),times=2)
 
 
 
@@ -124,7 +123,7 @@ obtain_k_optimal=function(kmax){
   return(knn)
 }
 
-knn=obtain_k_optimal(5)
+microbenchmark(knn=obtain_k_optimal(5),times = 2)
 
 x=NULL
 y=NULL

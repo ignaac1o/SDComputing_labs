@@ -45,6 +45,51 @@ recode_clusters=function(data){
   
 }
 
+index=which(data_wo_factors$price<1500)
+data_wo_factors$cluster=1
+data_wo_factors[index,8]="A"
+data_wo_factors[-index,8]="B"
+names(data_wo_factors)
+data_wo_factors %<>% rename("cluster"="V8")
+
+
+
+data=group_by(.data = data_wo_factors,cluster)
+data=summarize(.data=group_by(.data = data_wo_factors,cluster),
+          price=mean(price),
+          speed=mean(speed),
+          hd=mean(hd),
+          ram=mean(ram),
+          screen=mean(screen),
+          cores=mean(cores),
+          trend=mean(trend))
+mutate(.data = summarize(.data=group_by(.data = data_wo_factors,cluster),
+                              price=mean(price),
+                              speed=mean(speed),
+                              hd=mean(hd),
+                              ram=mean(ram),
+                              screen=mean(screen),
+                              cores=mean(cores),
+                              trend=mean(trend)),
+            n_centroide=cluster)
+select(mutate(.data = summarize(.data=group_by(.data = data_wo_factors,cluster),
+                                     price=mean(price),
+                                     speed=mean(speed),
+                                     hd=mean(hd),
+                                     ram=mean(ram),
+                                     screen=mean(screen),
+                                     cores=mean(cores),
+                                     trend=mean(trend)),
+                   n_centroide=cluster),-cluster)
+centroids=as.data.frame(dplyr::ungroup(select(mutate(.data = summarize(.data=group_by(.data = knn_data,cluster),
+                                                            price=mean(price),
+                                                            speed=mean(speed),
+                                                            hd=mean(hd),
+                                                            ram=mean(ram),
+                                                            screen=mean(screen),
+                                                            cores=mean(cores),
+                                                            trend=mean(trend)),
+                                                              n_centroide=cluster),-cluster)))
 #Run
 
 knn_data=as.data.frame(scale(data_wo_factors))
@@ -89,8 +134,102 @@ ggplot(data = df, aes(x=x,y=y)) + geom_point() + geom_line()
 ##########################################
 
 ##############################3
-# R parallel script BIN
+# R parallel MP script BIN
 ##############################3
+k=3
+knn_data=as.data.frame(scale(data_wo_factors))
+
+getDoParWorkers()
+no_cores=detectCores()
+
+#Generate random centroids
+X=matrix(nrow=k,ncol=ncol(knn_data))
+
+clust=makeCluster(no_cores)
+for (i in 1:nrow(X)) {
+  X[i,]=parApply(clust,X=knn_data,MARGIN = 2,FUN = generate_random)
+}
+stopCluster(clust)
+
+X=as.matrix(cbind(X,1:k))
+
+
+#Distances
+x=c()
+knn_data$error=NULL
+knn_data$cluster=NULL
+for (i in 1:nrow(knn_data)) {
+  for(j in 1:nrow(X)){
+    x[j]=euclidian(X[j,-ncol(X)],knn_data[i,1:(ncol(knn_data)-2)])
+  }
+  knn_data$error[i]<-min(x)
+  knn_data$cluster[i]<-which(x==min(x))
+}
+
+
+knn_data$error=NULL
+knn_data$cluster=NULL
+
+clust=makeCluster(no_cores)
+
+x=data.frame()
+clusterExport(clust,"x",envir=environment())
+clusterExport(clust,"X",envir=environment())
+clusterExport(clust,"knn_data",envir=environment())
+for(i in nrow(knn_data)){
+  x[i,]=parApply(MARGIN = 1,X = X[,-nrow(X)],FUN = euclidian,a=knn_data[i,-c(8,9)],cl = clust)
+  #knn_data$error[i]<-min(x)
+  #knn_data$cluster[i]<-which(x==min(x))
+}
+
+stopCluster(clust)
+
+
+
+for(i in nrow(X)){
+  t=parApply(MARGIN = 1,X = X[,-nrow(X)],FUN = euclidian,a=knn_data[i,])
+}
+
+
+
+t=apply(MARGIN = 1,X = X[,-nrow(X)],FUN = euclidian,a=knn_data[1,-c(8,9)])
+
+
+##########################################
+##########################################
+
+##############################3
+# R parallel THREADS script BIN
+##############################3
+no_cores=detectCores()
+clust=makeCluster(no_cores,type = "FORK")
+registerDoParallel(clust)
+
+knn_data=as.data.frame(scale(data_wo_factors))
+k=2
+
+#Generate random centroids
+X=matrix(nrow=k,ncol=ncol(knn_data))
+clusters=letters[1:k]
+for (j in 1:k) {
+  X[j,]=foreach(i=1:(ncol(X)),.combine = cbind) %dopar% generate_random(knn_data[,i])
+}
+X=as.matrix(cbind(X,1:k))
+stopCluster(clust)
+
+#Compute Distances
+#registerDoParallel(clust)
+x=c()
+knn_data$error=NULL
+knn_data$cluster=NULL
+for (i in 1:nrow(knn_data)) {
+  x=foreach(j=1:nrow(X), .combine=c) %dopar% euclidian(X[j,],knn_data[i,-c(8,9)])
+  knn_data$error[i]<-min(x)
+  knn_data$cluster[i]<-which(x==min(x))
+}
+stopCluster(clust)
+
+
 
 
 
