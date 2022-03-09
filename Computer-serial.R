@@ -121,14 +121,14 @@ obtain_k_optimal=function(kmax){
   return(knn)
 }
 
-microbenchmark(knn=obtain_k_optimal(5),times = 2)
+microbenchmark(knn_data2,times = 2)
 knn_data2=obtain_k_optimal(5)
 
 
 x=NULL
 y=NULL
-for (i in 1:length(knn)) {
-  y[i]=sum(knn[[i]]$error)
+for (i in 1:length(knn_data2)) {
+  y[i]=sum(knn_data2[[i]]$error)
   x[i]=i
 }
 
@@ -151,16 +151,9 @@ ggplot(data = df, aes(x=x,y=y)) + geom_point() + geom_line()
 
 # 6.- Plot the first 2 dimensions of the clusters
 
-ggplot(knn_data,aes(x=price,y=speed,color=as.factor(cluster))) + geom_point()
+ggplot(knn_data2[[2]],aes(x=price,y=speed,color=as.factor(cluster))) + geom_point()
 
 # 7.- Find the cluster with the highest average price and print it.
-
-ind1 <- which(knn_data$cluster==1)
-price1 <- knn_data$price[ind1]
-mean(price1)
-ind2 <- which(knn_data$cluster==2)
-price2 <- knn_data$price[ind2]
-mean(price2)
 
 hpricefun <- function(datos){
   x = list()
@@ -168,22 +161,22 @@ hpricefun <- function(datos){
   datos[,n] %<>% as.factor()
   k = length(levels(datos[,n]))
   for(i in 1:k){
-    ind1 <- which(knn_data$cluster==i)
-    price1 <- knn_data$price[ind1]
+    ind1 <- which(datos$cluster==i)
+    price1 <- datos$price[ind1]
     x[i]=mean(price1)
   }
   return(x)
 }
 
-hpricefun(knn_data)
+hpricefun(knn_data2[[2]])
 
 
 #8.- Print a heat map using the values of the clusters centroids.
 
 datamatrix <- data_wo_factors %<>% as.matrix()
-datosknnmatrix <- knn_data[,-c(8,9)] %<>% as.matrix()
+datosknnmatrix <- knn_data2[[2]][,-c(8,9)] %<>% as.matrix()
 par(mfrow = c(1, 2))
 image(t(datamatrix)[, nrow(datamatrix):1], yaxt = "n", main = "Original Data")
-image(t(datamatrix)[, order(knn_data$cluster)], yaxt = "n", main = "Clustered Data")
+image(t(datamatrix)[, order(knn_data2[[2]]$cluster)], yaxt = "n", main = "Clustered Data")
 
 
