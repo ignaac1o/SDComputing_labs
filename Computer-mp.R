@@ -62,19 +62,24 @@ knn_diy=function(data,k){
     knn_data$error[i]<-min(x)
     knn_data$cluster[i]<-which(x==min(x))
   }
-  #
-  print(head(knn_data))
-  #
-  
+
   #Check errors
   error=c(0,sum(knn_data$error))
   e=2
   
-  #
-  print(error)
-  #
-  
-  while(round(error[e],2)!= round(error[e-1],2)){
+  while(round(error[e],0)!= round(error[e-1],0)){
+
+    
+    X=as.data.frame(dplyr::ungroup(dplyr::select(plyr::mutate(.data = dplyr::summarize(.data=dplyr::group_by(.data = knn_data,cluster),
+                                                                                       price=mean(price),
+                                                                                       speed=mean(speed),
+                                                                                       hd=mean(hd),
+                                                                                       ram=mean(ram),
+                                                                                       screen=mean(screen),
+                                                                                       cores=mean(cores)),
+                                                              n_centroide=cluster),-cluster)))
+    
+    
     #Compute distances
     x=c()
     for (i in 1:nrow(knn_data)) {
@@ -87,16 +92,6 @@ knn_diy=function(data,k){
     
     #Write error
     error=c(error,sum(knn_data$error))
-    
-    X=as.data.frame(dplyr::ungroup(dplyr::select(plyr::mutate(.data = dplyr::summarize(.data=dplyr::group_by(.data = knn_data,cluster),
-                                                                    price=mean(price),
-                                                                    speed=mean(speed),
-                                                                    hd=mean(hd),
-                                                                    ram=mean(ram),
-                                                                    screen=mean(screen),
-                                                                    cores=mean(cores)),
-                                                                    #trend=mean(trend)),
-                                                  n_centroide=cluster),-cluster)))
     
     #Next iteration
     e=e+1
@@ -116,17 +111,15 @@ clusterExport(clust,"data_wo_factors",envir = environment())
 clusterExport(clust,"generate_random",envir = environment())
 clusterExport(clust,"euclidian",envir = environment())
 
+Start <- Sys.time()
 knn=parLapply(cl = clust,X = 1:5,fun = knn_diy,data=data_wo_factors)
-
+end <- Sys.time()
 
 
 stopCluster(clust)
 
 
 # 2.- Measure the time and optimize the program to get the fastest version you can.
-Start <- Sys.time()
-knn=parLapply(cl = clust,X = 1:5,fun = knn_diy,data=data_wo_factors)
-end <- Sys.time()
 time <- end - Start
 print(time)
 
