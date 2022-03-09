@@ -15,11 +15,12 @@ data5k=read.csv(file = "computers5k.csv",header = T)
 data5k$id = NULL
 data5k$cd %<>% mapvalues(from = c("yes","no"), to = c("1","0"))  %>% as.factor()
 data5k$laptop %<>% mapvalues(from = c("yes","no"), to = c("1","0")) %>% as.factor()
+data5k$trend %<>% as.factor()
 
 summary(data5k)
 
 #kmeans only work with numeric vectors
-data_wo_factors = data5k %>% dplyr::select(c(-cd,-laptop))
+data_wo_factors = data5k %>% dplyr::select(c(-cd,-laptop,-trend))
 
 
 ############## K means DIY Process #####################
@@ -86,27 +87,14 @@ knn_diy=function(data,k){
     #Write error
     error=c(error,sum(knn_data$error))
     
-    #Recode Clusters
-    # centroids= knn_data %>% group_by(cluster) %>% 
-    #   summarize(price=mean(price),
-    #             speed=mean(speed),
-    #             hd=mean(hd),
-    #             ram=mean(ram),
-    #             screen=mean(screen),
-    #             cores=mean(cores),
-    #             trend=mean(trend)) %>% 
-    #   mutate(n_centroide=cluster) %>% 
-    #   select(-cluster) %>% 
-    #   ungroup() %>% as.data.frame(.)
-    
-    centroids=as.data.frame(dplyr::ungroup(dplyr::select(plyr::mutate(.data = dplyr::summarize(.data=dplyr::group_by(.data = knn_data,cluster),
+    X=as.data.frame(dplyr::ungroup(dplyr::select(plyr::mutate(.data = dplyr::summarize(.data=dplyr::group_by(.data = knn_data,cluster),
                                                                     price=mean(price),
                                                                     speed=mean(speed),
                                                                     hd=mean(hd),
                                                                     ram=mean(ram),
                                                                     screen=mean(screen),
-                                                                    cores=mean(cores),
-                                                                    trend=mean(trend)),
+                                                                    cores=mean(cores)),
+                                                                    #trend=mean(trend)),
                                                   n_centroide=cluster),-cluster)))
     
     #Next iteration
@@ -128,8 +116,8 @@ clusterExport(clust,"generate_random",envir = environment())
 clusterExport(clust,"euclidian",envir = environment())
 
 knn=parLapply(cl = clust,X = 1:5,fun = knn_diy,data=data_wo_factors)
-microbenchmark(parLapply(cl = clust,X = 1:5,fun = knn_diy,data=data_wo_factors),times = 1)
-
+#microbenchmark(parLapply(cl = clust,X = 1:5,fun = knn_diy,data=data_wo_factors),times = 1)
+knn=knn_diy(data_wo_factors,2)
 
 stopCluster(clust)
 
@@ -147,5 +135,7 @@ df=data.frame(x,y)
 ggplot(df,aes(x=x,y=y))+geom_point()+geom_line()
 
 #Plot
-ggplot(knn[[2]],aes(x=price,y=speed,color=as.factor(cluster))) + geom_point()
+#ggplot(knn[[2]],aes(x=price,y=speed,color=as.factor(cluster))) + geom_point()
+
+ggplot(knn,aes(x=price,y=speed,color=as.factor(cluster))) + geom_point()
 
