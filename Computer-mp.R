@@ -156,8 +156,6 @@ datamatrix <- data_wo_factors %<>% as.matrix()
 heatmap(x = datamatrix, scale="none", col = knn[[2]]$cluster, cexRow = 0.7)
 
 
-
-
 # Elbow Graph (no lo pide)
 x=NULL
 y=NULL
