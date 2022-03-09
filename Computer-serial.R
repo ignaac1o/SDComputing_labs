@@ -82,8 +82,9 @@ knn_diy=function(data,k){
     error=c(error,sum(knn_data$error))
     
     #Recode Clusters
-    centroids= knn_data %>% group_by(cluster) %>% 
-      summarize(price=mean(price),
+    #knn_data$cluster %<>% as.factor() 
+    X= knn_data %>% group_by(cluster) %>% 
+      dplyr::summarize(price=mean(price),
                 speed=mean(speed),
                 hd=mean(hd),
                 ram=mean(ram),
@@ -97,7 +98,7 @@ knn_diy=function(data,k){
     #Next iteration
     e=e+1
     #
-    print(e)
+    print(error)
     #
   }
   
@@ -105,13 +106,10 @@ knn_diy=function(data,k){
 }
 
 
-microbenchmark(knn_diy(data_wo_factors,2),times=2)
-
-
+knn_data=knn_diy(data_wo_factors,2)
 
 
 # 1.- Construct the elbow graph and find the optimal clusters number (k).
-
 
 # 2.- Implement the k-means algorithm
 
@@ -123,7 +121,9 @@ obtain_k_optimal=function(kmax){
   return(knn)
 }
 
-microbenchmark(knn=obtain_k_optimal(5),times = 2)
+#microbenchmark(knn=obtain_k_optimal(5),times = 2)
+knn_data=obtain_k_optimal(5)
+
 
 x=NULL
 y=NULL
