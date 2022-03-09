@@ -15,11 +15,11 @@ data5k=read.csv(file = "computers5k.csv",header = T)
 data5k$id = NULL
 data5k$cd %<>% mapvalues(from = c("yes","no"), to = c("1","0"))  %>% as.factor()
 data5k$laptop %<>% mapvalues(from = c("yes","no"), to = c("1","0")) %>% as.factor()
-
+data5k$trend %<>% as.factor()
 summary(data5k)
 
 #kmeans only work with numeric vectors
-data_wo_factors = data5k %>% dplyr::select(c(-cd,-laptop))
+data_wo_factors = data5k %>% dplyr::select(c(-cd,-laptop,-trend))
 
 generate_random=function(vector){
   return(runif(1,min(vector),max(vector)))
@@ -29,20 +29,22 @@ euclidian=function(a,b){
   sqrt(sum((a-b)^2))
 }
 
-clust=makeCluster(no_cores,type = "FORK")
 
-knn_diy_th=function(data,k,cluster){
+
+knn_diy=function(data,k){
   
   #Scale data
   knn_data=as.data.frame(scale(data))
   
   #Generate random centroids
-  X=matrix(nrow=k,ncol=ncol(knn_data))
+  X=matrix(nrow=k,ncol=ncol(knn_data)+1)
   clusters=letters[1:k]
-  for (j in 1:k) {
-    X[j,]=foreach(i=1:(ncol(X)),.combine = cbind) %dopar% generate_random(knn_data[,i])
+  for (i in 1:nrow(X)) {
+    for(j in 1:ncol(knn_data)){
+      X[i,j]=generate_random(knn_data[,j]) 
+    }
   }
-  X=as.matrix(cbind(X,1:k))
+  X[,ncol(knn_data)+1]=as.factor(letters[1:k])
   
   
   #Compute Distances
@@ -50,11 +52,15 @@ knn_diy_th=function(data,k,cluster){
   knn_data$error=NULL
   knn_data$cluster=NULL
   for (i in 1:nrow(knn_data)) {
-    x=foreach(j=1:nrow(X), .combine=c) %dopar% euclidian(X[j,],knn_data[i,-c(8,9)])
+    for(j in 1:nrow(X)){
+      x[j]=euclidian(X[j,-ncol(X)],knn_data[i,1:(ncol(knn_data)-2)])
+    }
     knn_data$error[i]<-min(x)
     knn_data$cluster[i]<-which(x==min(x))
   }
-  
+  #
+  print(head(knn_data))
+  #
   
   #Check errors
   error=c(0,sum(knn_data$error))
@@ -68,7 +74,9 @@ knn_diy_th=function(data,k,cluster){
     #Compute distances
     x=c()
     for (i in 1:nrow(knn_data)) {
-      x=foreach(j=1:nrow(X), .combine=c) %dopar% euclidian(X[j,],knn_data[i,-c(8,9)])
+      for(j in 1:nrow(X)){
+        x[j]=euclidian(X[j,-ncol(X)],knn_data[i,1:(ncol(knn_data)-2)])
+      }
       knn_data$error[i]<-min(x)
       knn_data$cluster[i]<-which(x==min(x))
     }
@@ -77,14 +85,14 @@ knn_diy_th=function(data,k,cluster){
     error=c(error,sum(knn_data$error))
     
     #Recode Clusters
-    centroids= knn_data %>% group_by(cluster) %>% 
-      summarize(price=mean(price),
-                speed=mean(speed),
-                hd=mean(hd),
-                ram=mean(ram),
-                screen=mean(screen),
-                cores=mean(cores),
-                trend=mean(trend)) %>% 
+    #knn_data$cluster %<>% as.factor() 
+    X= knn_data %>% group_by(cluster) %>% 
+      dplyr::summarize(price=mean(price),
+                       speed=mean(speed),
+                       hd=mean(hd),
+                       ram=mean(ram),
+                       screen=mean(screen),
+                       cores=mean(cores)) %>%
       mutate(n_centroide=cluster) %>% 
       select(-cluster) %>% 
       ungroup() %>% as.data.frame(.)
@@ -92,7 +100,7 @@ knn_diy_th=function(data,k,cluster){
     #Next iteration
     e=e+1
     #
-    print(e)
+    print(error)
     #
   }
   
@@ -101,19 +109,19 @@ knn_diy_th=function(data,k,cluster){
 
 
 
-obtain_k_optimal_th=function(k,data){
-  knn=foreach(i=1:k) %dopar% knn_diy(data,i)
-}
-
 no_cores=detectCores()
 clust=makeCluster(no_cores,type = "FORK")
 registerDoParallel(clust)
+
+
+obtain_k_optimal_th=function(k,data){
+  knn=foreach(i=1:k) %dopar% knn_diy(data,i)
+}
 
 #microbenchmark(knn=obtain_k_optimal_th(5,data_wo_factors),times=1)
 knn=obtain_k_optimal_th(5,data_wo_factors)
 
 stopCluster(clust)
-
 
 
 #PLot elbow graph
