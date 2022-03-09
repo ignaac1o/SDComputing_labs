@@ -11,11 +11,11 @@ data5k=read.csv(file = "computers5k.csv",header = T)
 data5k$id = NULL
 data5k$cd %<>% mapvalues(from = c("yes","no"), to = c("1","0"))  %>% as.factor()
 data5k$laptop %<>% mapvalues(from = c("yes","no"), to = c("1","0")) %>% as.factor()
-
+data5k$trend %<>% as.factor() 
 summary(data5k)
 
 #kmeans only work with numeric vectors
-data_wo_factors = data5k %>% dplyr::select(c(-cd,-laptop))
+data_wo_factors = data5k %>% dplyr::select(c(-cd,-laptop,-trend))
 
 ############## K means DIY Process #####################
 
@@ -32,55 +32,38 @@ knn_diy=function(data,k){
   
   #Scale data
   knn_data=as.data.frame(scale(data))
-  
+  n=ncol(knn_data)
   #Generate random centroids
-  X=matrix(nrow=k,ncol=ncol(knn_data)+1)
-  clusters=letters[1:k]
+  X=matrix(nrow=k,ncol=(n+1))
+  #clusters=letters[1:k]
   for (i in 1:nrow(X)) {
-    for(j in 1:ncol(knn_data)){
+    for(j in 1:n){
       X[i,j]=generate_random(knn_data[,j]) 
     }
   }
-  X[,ncol(knn_data)+1]=as.factor(letters[1:k])
+  X[,n+1]=as.factor(letters[1:k])
   
   
   #Compute Distances
   x=c()
-  knn_data$error=NULL
-  knn_data$cluster=NULL
+  knn_data$error=0
+  knn_data$cluster=0
+  n=ncol(knn_data)
+  m=ncol(X)
   for (i in 1:nrow(knn_data)) {
     for(j in 1:nrow(X)){
-      x[j]=euclidian(X[j,-ncol(X)],knn_data[i,1:(ncol(knn_data)-2)])
+      x[j]=euclidian(X[j,-m],knn_data[i,-c(7,8)])
     }
     knn_data$error[i]<-min(x)
     knn_data$cluster[i]<-which(x==min(x))
+    x=c()
   }
-  #
-  print(head(knn_data))
-  #
-  
+
   #Check errors
   error=c(0,sum(knn_data$error))
   e=2
   
-  #
-  print(error)
-  #
-  
-  while(round(error[e],2)!= round(error[e-1],2)){
-    #Compute distances
-    x=c()
-    for (i in 1:nrow(knn_data)) {
-      for(j in 1:nrow(X)){
-        x[j]=euclidian(X[j,-ncol(X)],knn_data[i,1:(ncol(knn_data)-2)])
-      }
-      knn_data$error[i]<-min(x)
-      knn_data$cluster[i]<-which(x==min(x))
-    }
-    
-    #Write error
-    error=c(error,sum(knn_data$error))
-    
+  while(round(error[e],0)!= round(error[e-1],0)){
     #Recode Clusters
     #knn_data$cluster %<>% as.factor() 
     X= knn_data %>% group_by(cluster) %>% 
@@ -89,12 +72,25 @@ knn_diy=function(data,k){
                 hd=mean(hd),
                 ram=mean(ram),
                 screen=mean(screen),
-                cores=mean(cores),
-                trend=mean(trend)) %>% 
+                cores=mean(cores)) %>% 
       mutate(n_centroide=cluster) %>% 
       select(-cluster) %>% 
       ungroup() %>% as.data.frame(.)
     
+    #Compute distances
+    x=c()
+    for (i in 1:nrow(knn_data)) {
+      for(j in 1:nrow(X)){
+        x[j]=euclidian(X[j,-m],knn_data[i,-c(7,8)])
+      }
+      knn_data$error[i]<-min(x)
+      knn_data$cluster[i]<-which(x==min(x))
+      x=c()
+    }
+    
+    #Write error
+    error=c(error,sum(knn_data$error))
+  
     #Next iteration
     e=e+1
     #
@@ -105,24 +101,22 @@ knn_diy=function(data,k){
   return(knn_data)
 }
 
-
-knn_data=knn_diy(data_wo_factors,2)
-
-
 # 1.- Construct the elbow graph and find the optimal clusters number (k).
 
 # 2.- Implement the k-means algorithm
 
-obtain_k_optimal=function(kmax){
+obtain_k_optimal_serial=function(data,k){
   knn=NULL
-  for (i in 1:kmax) {
-    knn[i]=list(knn_diy(data_wo_factors,i))
+  for (i in 1:k) {
+    knn[i]=list(knn_diy(data,i))
   }
   return(knn)
 }
 
-microbenchmark(knn_data2,times = 2)
-knn_data2=obtain_k_optimal(5)
+
+start=Sys.time()
+knn=obtain_k_optimal_serial(data_wo_factors,5)
+stop=Sys.time()
 
 
 x=NULL
@@ -135,23 +129,16 @@ for (i in 1:length(knn_data2)) {
 df=data.frame(x,y)
 
 
-
-
-# 3.- Cluster the data using the optimum value using k-means.
-
-#The plot suggest k=5
-
 # 4.-Measure time
-
-microbenchmark(knn_diy(data_wo_factors,2), kmeans(data_wo_factors,2), times = 1)
+print(stop-start)
 
 # 5.- Plot the results of the elbow graph.
+ggplot(data = df, aes(x=x,y=y)) + geom_point() + geom_line() #Elbow GRaph suggest 2 clusters
 
-ggplot(data = df, aes(x=x,y=y)) + geom_point() + geom_line() 
 
 # 6.- Plot the first 2 dimensions of the clusters
 
-ggplot(knn_data2[[2]],aes(x=price,y=speed,color=as.factor(cluster))) + geom_point()
+ggplot(knn[[2]],aes(x=price,y=speed,color=as.factor(cluster))) + geom_point()
 
 # 7.- Find the cluster with the highest average price and print it.
 
@@ -168,15 +155,12 @@ hpricefun <- function(datos){
   return(x)
 }
 
-hpricefun(knn_data2[[2]])
+hpricefun(knn[[2]])
+
 
 
 #8.- Print a heat map using the values of the clusters centroids.
-
 datamatrix <- data_wo_factors %<>% as.matrix()
-datosknnmatrix <- knn_data2[[2]][,-c(8,9)] %<>% as.matrix()
-par(mfrow = c(1, 2))
-image(t(datamatrix)[, nrow(datamatrix):1], yaxt = "n", main = "Original Data")
-image(t(datamatrix)[, order(knn_data2[[2]]$cluster)], yaxt = "n", main = "Clustered Data")
+heatmap(x = datamatrix, scale="none", col = knn[[2]]$cluster, cexRow = 0.7)
 
 
