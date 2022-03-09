@@ -29,8 +29,6 @@ euclidian=function(a,b){
   sqrt(sum((a-b)^2))
 }
 
-
-
 knn_diy=function(data,k){
   
   #Scale data
@@ -58,17 +56,10 @@ knn_diy=function(data,k){
     knn_data$error[i]<-min(x)
     knn_data$cluster[i]<-which(x==min(x))
   }
-  #
-  print(head(knn_data))
-  #
-  
+
   #Check errors
   error=c(0,sum(knn_data$error))
   e=2
-  
-  #
-  print(error)
-  #
   
   while(round(error[e],2)!= round(error[e-1],2)){
     #Compute distances
@@ -85,7 +76,6 @@ knn_diy=function(data,k){
     error=c(error,sum(knn_data$error))
     
     #Recode Clusters
-    #knn_data$cluster %<>% as.factor() 
     X= knn_data %>% group_by(cluster) %>% 
       dplyr::summarize(price=mean(price),
                        speed=mean(speed),
@@ -107,49 +97,63 @@ knn_diy=function(data,k){
   return(knn_data)
 }
 
-
+########### BEGIN PARALLEL W THREADS ###############
 
 no_cores=detectCores()
 clust=makeCluster(no_cores,type = "FORK")
 registerDoParallel(clust)
 
-
+#Do function to obtain elbow graph in parallel
 obtain_k_optimal_th=function(k,data){
   knn=foreach(i=1:k) %dopar% knn_diy(data,i)
 }
 
-#microbenchmark(knn=obtain_k_optimal_th(5,data_wo_factors),times=1)
+#MEASURE TIME
+start=Sys.time()
 knn=obtain_k_optimal_th(5,data_wo_factors)
+stop=Sys.time()
 
 stopCluster(clust)
 
+print(stop-start)
 
-#PLot elbow graph
-x=NULL
-y=c()
-no_cores=detectCores()
-clust=makeCluster(no_cores,type = "FORK")
-registerDoParallel(clust)
-
-y=foreach(i=1:length(knn),.combine=c) %dopar% sum(knn[[1]][[i]]$error)
-x=1:length(knn[[1]])
-
-stopCluster(clust)
-
+############# STOP THREADS #########################
 
 x=NULL
 y=NULL
-for (i in 1:length(knn[[1]])) {
-  y[i]=sum(knn[[1]][[i]]$error)
+for (i in 1:length(knn)) {
+  y[i]=sum(knn[[i]]$error)
   x[i]=i
 }
-
 df=data.frame(x,y)
 
-
+#Plot Elbow Graph
 ggplot(data = df, aes(x=x,y=y)) + geom_point() + geom_line() 
 
 
-#Classification
-ggplot(knn[[1]][[2]],aes(x=price,y=speed,color=as.factor(cluster))) + geom_point()
+#PLOT FIRST TWO DIMMENSIONS
+ggplot(knn[[2]],aes(x=price,y=speed,color=as.factor(cluster))) + geom_point()
+
+#FIND CLUSTER WITH HIGEST AVERAGE PRICE
+hpricefun <- function(datos){
+  x = list()
+  n = ncol(datos)
+  datos[,n] %<>% as.factor()
+  k = length(levels(datos[,n]))
+  for(i in 1:k){
+    ind1 <- which(datos$cluster==i)
+    price1 <- datos$price[ind1]
+    x[i]=mean(price1)
+  }
+  return(x)
+}
+
+hpricefun(knn[[2]])
+
+
+#PRINT HEATMAP
+datamatrix <- data_wo_factors %<>% as.matrix()
+heatmap(x = datamatrix, scale="none", col = knn[[2]]$cluster, cexRow = 0.7)
+
+
 
