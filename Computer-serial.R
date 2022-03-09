@@ -121,8 +121,8 @@ obtain_k_optimal=function(kmax){
   return(knn)
 }
 
-#microbenchmark(knn=obtain_k_optimal(5),times = 2)
-knn_data=obtain_k_optimal(5)
+microbenchmark(knn=obtain_k_optimal(5),times = 2)
+knn_data2=obtain_k_optimal(5)
 
 
 x=NULL
