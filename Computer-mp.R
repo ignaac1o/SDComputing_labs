@@ -22,7 +22,6 @@ summary(data5k)
 #kmeans only work with numeric vectors
 data_wo_factors = data5k %>% dplyr::select(c(-cd,-laptop,-trend))
 
-# 1.- Write a parallel version of you program using multiprocessing
 
 ############## K means DIY Process #####################
 
@@ -117,48 +116,12 @@ clusterExport(clust,"generate_random",envir = environment())
 clusterExport(clust,"euclidian",envir = environment())
 
 knn=parLapply(cl = clust,X = 1:5,fun = knn_diy,data=data_wo_factors)
-
-
+#microbenchmark(parLapply(cl = clust,X = 1:5,fun = knn_diy,data=data_wo_factors),times = 1)
+knn=knn_diy(data_wo_factors,2)
 
 stopCluster(clust)
 
 
-# 2.- Measure the time and optimize the program to get the fastest version you can.
-Start <- Sys.time()
-knn=parLapply(cl = clust,X = 1:5,fun = knn_diy,data=data_wo_factors)
-end <- Sys.time()
-time <- end - Start
-print(time)
-
-# 3.- Plot the first 2 dimensions of the clusters
-ggplot(knn[[2]],aes(x=price,y=speed,color=as.factor(cluster))) + geom_point()
-
-
-# 4- Find the cluster with the highest average price and print it.
-
-hpricefun <- function(datos){
-  x = list()
-  n = ncol(datos)
-  datos[,n] %<>% as.factor()
-  k = length(levels(datos[,n]))
-  for(i in 1:k){
-    ind1 <- which(datos$cluster==i)
-    price1 <- datos$price[ind1]
-    x[i]=mean(price1)
-  }
-  return(x)
-}
-
-hpricefun(knn[[2]]) #The highest price corresponds to the first element of the list (1 cluster).
-
-# 5.- Print a heat map using the values of the clusters centroids.
-datamatrix <- data_wo_factors %<>% as.matrix()
-heatmap(x = datamatrix, scale="none", col = knn[[2]]$cluster, cexRow = 0.7)
-
-
-
-
-# Elbow Graph (no lo pide)
 x=NULL
 y=NULL
 for (i in 1:length(knn)) {
@@ -167,6 +130,12 @@ for (i in 1:length(knn)) {
 }
 
 df=data.frame(x,y)
+
+#Elbow Graph
 ggplot(df,aes(x=x,y=y))+geom_point()+geom_line()
 
+#Plot
+#ggplot(knn[[2]],aes(x=price,y=speed,color=as.factor(cluster))) + geom_point()
+
+ggplot(knn,aes(x=price,y=speed,color=as.factor(cluster))) + geom_point()
 
