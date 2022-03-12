@@ -136,7 +136,7 @@ ggplot(data = df, aes(x=x,y=y)) + geom_point() + geom_line()
 ##############################3
 # R parallel MP script BIN
 ##############################3
-k=3
+k=2
 knn_data=as.data.frame(scale(data_wo_factors))
 
 getDoParWorkers()
@@ -147,7 +147,7 @@ X=matrix(nrow=k,ncol=ncol(knn_data))
 
 clust=makeCluster(no_cores)
 for (i in 1:nrow(X)) {
-  X[i,]=parApply(clust,X=knn_data,MARGIN = 2,FUN = generate_random)
+  X[i,]=apply(X=knn_data,MARGIN = 2,FUN = generate_random)
 }
 stopCluster(clust)
 
@@ -193,6 +193,21 @@ for(i in nrow(X)){
 
 
 t=apply(MARGIN = 1,X = X[,-nrow(X)],FUN = euclidian,a=knn_data[1,-c(8,9)])
+
+
+
+n=ncol(knn_data)
+m=nrow(X)
+x=matrix(nrow = nrow(knn_data),ncol = m)
+for(i in 1:m){
+  x[,i]=apply(X =knn_data,MARGIN = 1,FUN = euclidian,b=X[i,])
+}
+for(i in 1:nrow(knn_data)){
+  knn_data$error[i]<-min(x[i,])
+  knn_data$cluster[i]<-which(x[i,]==min(x[i,]))
+}
+x=NULL
+
 
 
 ##########################################
