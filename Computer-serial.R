@@ -45,19 +45,18 @@ knn_diy=function(data,k){
   
   
   #Compute Distances
-  x=c()
-  knn_data$error=0
-  knn_data$cluster=0
   n=ncol(knn_data)
-  m=ncol(X)
-  for (i in 1:nrow(knn_data)) {
-    for(j in 1:nrow(X)){
-      x[j]=euclidian(X[j,-m],knn_data[i,-c(7,8)])
-    }
-    knn_data$error[i]<-min(x)
-    knn_data$cluster[i]<-which(x==min(x))
-    x=c()
+  m=nrow(X)
+  nX=ncol(X)
+  x=matrix(nrow = nrow(knn_data),ncol = m)
+  for(i in 1:m){
+    x[,i]=apply(X =knn_data,MARGIN = 1,FUN = euclidian,b=X[i,-nX])
   }
+  for(i in 1:nrow(knn_data)){
+    knn_data$error[i]<-min(x[i,])
+    knn_data$cluster[i]<-which(x[i,]==min(x[i,]))
+  }
+  x=NULL
 
   #Check errors
   error=c(0,sum(knn_data$error))
@@ -78,15 +77,18 @@ knn_diy=function(data,k){
       ungroup() %>% as.data.frame(.)
     
     #Compute distances
-    x=c()
-    for (i in 1:nrow(knn_data)) {
-      for(j in 1:nrow(X)){
-        x[j]=euclidian(X[j,-m],knn_data[i,-c(7,8)])
-      }
-      knn_data$error[i]<-min(x)
-      knn_data$cluster[i]<-which(x==min(x))
-      x=c()
+    n=ncol(knn_data)-2
+    m=nrow(X)
+    nX=ncol(X)
+    x=matrix(nrow = nrow(knn_data),ncol = m)
+    for(i in 1:m){
+      x[,i]=apply(X =knn_data[,-c(7,8)],MARGIN = 1,FUN = euclidian,b=X[i,-nX])
     }
+    for(i in 1:nrow(knn_data)){
+      knn_data$error[i]<-min(x[i,])
+      knn_data$cluster[i]<-which(x[i,]==min(x[i,]))
+    }
+    x=NULL
     
     #Write error
     error=c(error,sum(knn_data$error))
@@ -121,8 +123,8 @@ stop=Sys.time()
 
 x=NULL
 y=NULL
-for (i in 1:length(knn_data2)) {
-  y[i]=sum(knn_data2[[i]]$error)
+for (i in 1:length(knn)) {
+  y[i]=sum(knn[[i]]$error)
   x[i]=i
 }
 
