@@ -52,16 +52,18 @@ knn_diy=function(data,k){
   
   
   #Compute Distances
-  x=c()
-  knn_data$error=NULL
-  knn_data$cluster=NULL
-  for (i in 1:nrow(knn_data)) {
-    for(j in 1:nrow(X)){
-      x[j]=euclidian(X[j,-ncol(X)],knn_data[i,1:(ncol(knn_data)-2)])
-    }
-    knn_data$error[i]<-min(x)
-    knn_data$cluster[i]<-which(x==min(x))
+  n=ncol(knn_data)
+  m=nrow(X)
+  nX=ncol(X)
+  x=matrix(nrow = nrow(knn_data),ncol = m)
+  for(i in 1:m){
+    x[,i]=apply(X =knn_data,MARGIN = 1,FUN = euclidian,b=X[i,-nX])
   }
+  for(i in 1:nrow(knn_data)){
+    knn_data$error[i]<-min(x[i,])
+    knn_data$cluster[i]<-which(x[i,]==min(x[i,]))
+  }
+  x=NULL
 
   #Check errors
   error=c(0,sum(knn_data$error))
@@ -81,14 +83,18 @@ knn_diy=function(data,k){
     
     
     #Compute distances
-    x=c()
-    for (i in 1:nrow(knn_data)) {
-      for(j in 1:nrow(X)){
-        x[j]=euclidian(X[j,-ncol(X)],knn_data[i,1:(ncol(knn_data)-2)])
-      }
-      knn_data$error[i]<-min(x)
-      knn_data$cluster[i]<-which(x==min(x))
+    n=ncol(knn_data)-2
+    m=nrow(X)
+    nX=ncol(X)
+    x=matrix(nrow = nrow(knn_data),ncol = m)
+    for(i in 1:m){
+      x[,i]=apply(X =knn_data[,-c(7,8)],MARGIN = 1,FUN = euclidian,b=X[i,-nX])
     }
+    for(i in 1:nrow(knn_data)){
+      knn_data$error[i]<-min(x[i,])
+      knn_data$cluster[i]<-which(x[i,]==min(x[i,]))
+    }
+    x=NULL
     
     #Write error
     error=c(error,sum(knn_data$error))
@@ -145,8 +151,15 @@ hpricefun <- function(datos){
 hpricefun(knn[[2]]) #The highest price corresponds to the first element of the list (1 cluster).
 
 # 5.- Print a heat map using the values of the clusters centroids.
-datamatrix <- data_wo_factors %<>% as.matrix()
-heatmap(x = datamatrix, scale="none", col = knn[[2]]$cluster, cexRow = 0.7)
+clustersum=knn[[2]] %>% group_by(cluster) %>%  dplyr::summarize(price=mean(price),
+                                                                speed=mean(speed),
+                                                                hd=mean(hd),
+                                                                ram=mean(ram),
+                                                                screen=mean(screen),
+                                                                cores=mean(cores)) %>% 
+  dplyr::select(-1) %>% as.matrix()
+
+gplots::heatmap.2(x=clustersum,scale = "none",cexRow = 0.7,trace="none",density.info = "none")
 
 
 # Elbow Graph (no lo pide)
