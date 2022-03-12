@@ -162,7 +162,12 @@ hpricefun(knn[[2]])
 
 
 #8.- Print a heat map using the values of the clusters centroids.
-datamatrix <- data_wo_factors %<>% as.matrix()
-heatmap(x = datamatrix, scale="none", col = knn[[2]]$cluster, cexRow = 0.7)
+clustersum=knn[[2]] %>% group_by(cluster) %>%  dplyr::summarize(price=mean(price),
+                                                                speed=mean(speed),
+                                                                hd=mean(hd),
+                                                                ram=mean(ram),
+                                                                screen=mean(screen),
+                                                                cores=mean(cores)) %>% 
+  dplyr::select(-1) %>% as.matrix()
 
-
+gplots::heatmap.2(x=clustersum,scale = "none",cexRow = 0.7,trace="none",density.info = "none")
