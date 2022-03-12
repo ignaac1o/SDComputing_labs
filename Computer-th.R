@@ -21,6 +21,8 @@ summary(data5k)
 #kmeans only work with numeric vectors
 data_wo_factors = data5k %>% dplyr::select(c(-cd,-laptop,-trend))
 
+no_cores=detectCores()
+
 generate_random=function(vector){
   return(runif(1,min(vector),max(vector)))
 }
@@ -29,14 +31,14 @@ euclidian=function(a,b){
   sqrt(sum((a-b)^2))
 }
 
-knn_diy=function(data,k){
+knn_diy_th=function(data,k){
   
   #Scale data
   knn_data=as.data.frame(scale(data))
   
   #Generate random centroids
   X=matrix(nrow=k,ncol=ncol(knn_data)+1)
-  clusters=letters[1:k]
+  #clusters=letters[1:k]
   for (i in 1:nrow(X)) {
     for(j in 1:ncol(knn_data)){
       X[i,j]=generate_random(knn_data[,j]) 
@@ -46,35 +48,29 @@ knn_diy=function(data,k){
   
   
   #Compute Distances
-  x=c()
-  knn_data$error=NULL
-  knn_data$cluster=NULL
-  for (i in 1:nrow(knn_data)) {
-    for(j in 1:nrow(X)){
-      x[j]=euclidian(X[j,-ncol(X)],knn_data[i,1:(ncol(knn_data)-2)])
-    }
-    knn_data$error[i]<-min(x)
-    knn_data$cluster[i]<-which(x==min(x))
+  n=ncol(knn_data)
+  m=nrow(X)
+  nX=ncol(X)
+  clusts=makeCluster(no_cores,type = "FORK")
+  registerDoParallel(clusts)
+  x=foreach(i=1:m,.combine = cbind) %dopar% apply(X =knn_data,MARGIN = 1,FUN = euclidian,b=X[i,-nX])
+  stopCluster(clusts)
+  if(k==1){
+    knn_data$error=x[i]
+    knn_data$cluster=1
+  }else{
+  for(i in 1:nrow(knn_data)){
+    knn_data$error[i]<-min(x[i,])
+    knn_data$cluster[i]<-which(x[i,]==min(x[i,]))
   }
+  }
+  x=NULL
 
   #Check errors
   error=c(0,sum(knn_data$error))
   e=2
   
-  while(round(error[e],2)!= round(error[e-1],2)){
-    #Compute distances
-    x=c()
-    for (i in 1:nrow(knn_data)) {
-      for(j in 1:nrow(X)){
-        x[j]=euclidian(X[j,-ncol(X)],knn_data[i,1:(ncol(knn_data)-2)])
-      }
-      knn_data$error[i]<-min(x)
-      knn_data$cluster[i]<-which(x==min(x))
-    }
-    
-    #Write error
-    error=c(error,sum(knn_data$error))
-    
+  while(round(error[e],0)!= round(error[e-1],0)){
     #Recode Clusters
     X= knn_data %>% group_by(cluster) %>% 
       dplyr::summarize(price=mean(price),
@@ -82,10 +78,32 @@ knn_diy=function(data,k){
                        hd=mean(hd),
                        ram=mean(ram),
                        screen=mean(screen),
-                       cores=mean(cores)) %>%
+                       cores=mean(cores)) %>% 
       mutate(n_centroide=cluster) %>% 
       select(-cluster) %>% 
       ungroup() %>% as.data.frame(.)
+    
+    #Compute distances
+    n=ncol(knn_data)-2
+    m=nrow(X)
+    nX=ncol(X)
+    clustes=makeCluster(no_cores,type = "FORK")
+    registerDoParallel(clustes)
+    x=foreach(i=1:m,.combine = cbind) %dopar% apply(X =knn_data,MARGIN = 1,FUN = euclidian,b=X[i,-nX])
+    stopCluster(clustes)
+    if(k==1){
+      knn_data$error=x[i]
+      knn_data$cluster=1
+    }else{
+      for(i in 1:nrow(knn_data)){
+        knn_data$error[i]<-min(x[i,])
+        knn_data$cluster[i]<-which(x[i,]==min(x[i,]))
+      }
+    }
+    #x=NULL
+    
+    #Write error
+    error=c(error,sum(knn_data$error))
     
     #Next iteration
     e=e+1
@@ -99,21 +117,18 @@ knn_diy=function(data,k){
 
 ########### BEGIN PARALLEL W THREADS ###############
 
-no_cores=detectCores()
-clust=makeCluster(no_cores,type = "FORK")
-registerDoParallel(clust)
 
-#Do function to obtain elbow graph in parallel
-obtain_k_optimal_th=function(k,data){
-  knn=foreach(i=1:k) %dopar% knn_diy(data,i)
+obtain_k_optimal_threads=function(data,k){
+  knn=NULL
+  for (j in 1:k) {
+    knn[j]=list(knn_diy_th(data,j))
+  }
+  return(knn)
 }
 
-#MEASURE TIME
 start=Sys.time()
-knn=obtain_k_optimal_th(5,data_wo_factors)
+knn=obtain_k_optimal_threads(data_wo_factors,5)
 stop=Sys.time()
-
-stopCluster(clust)
 
 print(stop-start)
 
@@ -152,8 +167,12 @@ hpricefun(knn[[2]])
 
 
 #PRINT HEATMAP
-datamatrix <- data_wo_factors %<>% as.matrix()
-heatmap(x = datamatrix, scale="none", col = knn[[2]]$cluster, cexRow = 0.7)
+clustersum=knn[[2]] %>% group_by(cluster) %>%  dplyr::summarize(price=mean(price),
+                                                                speed=mean(speed),
+                                                                hd=mean(hd),
+                                                                ram=mean(ram),
+                                                                screen=mean(screen),
+                                                                cores=mean(cores)) %>% 
+                    dplyr::select(-1) %>% as.matrix()
 
-
-
+gplots::heatmap.2(x=clustersum,scale = "none",cexRow = 0.7,trace="none",density.info = "none")
