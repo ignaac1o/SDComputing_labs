@@ -208,7 +208,10 @@ for(i in 1:nrow(knn_data)){
 }
 x=NULL
 
-
+clusts=makeCluster(no_cores,type = "FORK")
+registerDoParallel(clusts)
+x=foreach(i=1:m,.combine = cbind) %dopar% apply(X =knn_data[,-c(7,8)],MARGIN = 1,FUN = euclidian,b=X[i,-nX])
+stopCluster(clusts)
 
 ##########################################
 ##########################################
