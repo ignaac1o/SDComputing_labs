@@ -35,44 +35,44 @@ euclidian=function(a,b){
   sqrt(sum((a-b)^2))
 }
 
-knn_diy=function(data,k){
+kmeans_diy=function(data,k){
   
   #Scale data
-  knn_data=as.data.frame(scale(data))
+  kmeans_data=as.data.frame(scale(data))
   
   #Generate random centroids
-  X=matrix(nrow=k,ncol=ncol(knn_data)+1)
+  X=matrix(nrow=k,ncol=ncol(kmeans_data)+1)
   clusters=letters[1:k]
   for (i in 1:nrow(X)) {
-    for(j in 1:ncol(knn_data)){
-      X[i,j]=generate_random(knn_data[,j]) 
+    for(j in 1:ncol(kmeans_data)){
+      X[i,j]=generate_random(kmeans_data[,j]) 
     }
   }
-  X[,ncol(knn_data)+1]=as.factor(letters[1:k])
+  X[,ncol(kmeans_data)+1]=as.factor(letters[1:k])
   
   
   #Compute Distances
-  n=ncol(knn_data)
+  n=ncol(kmeans_data)
   m=nrow(X)
   nX=ncol(X)
-  x=matrix(nrow = nrow(knn_data),ncol = m)
+  x=matrix(nrow = nrow(kmeans_data),ncol = m)
   for(i in 1:m){
-    x[,i]=apply(X =knn_data,MARGIN = 1,FUN = euclidian,b=X[i,-nX])
+    x[,i]=apply(X =kmeans_data,MARGIN = 1,FUN = euclidian,b=X[i,-nX])
   }
-  for(i in 1:nrow(knn_data)){
-    knn_data$error[i]<-min(x[i,])
-    knn_data$cluster[i]<-which(x[i,]==min(x[i,]))
+  for(i in 1:nrow(kmeans_data)){
+    kmeans_data$error[i]<-min(x[i,])
+    kmeans_data$cluster[i]<-which(x[i,]==min(x[i,]))
   }
   x=NULL
 
   #Check errors
-  error=c(0,sum(knn_data$error))
+  error=c(0,sum(kmeans_data$error))
   e=2
   
   while(round(error[e],0)!= round(error[e-1],0)){
 
     
-    X=as.data.frame(dplyr::ungroup(dplyr::select(plyr::mutate(.data = dplyr::summarize(.data=dplyr::group_by(.data = knn_data,cluster),
+    X=as.data.frame(dplyr::ungroup(dplyr::select(plyr::mutate(.data = dplyr::summarize(.data=dplyr::group_by(.data = kmeans_data,cluster),
                                                                                        price=mean(price),
                                                                                        speed=mean(speed),
                                                                                        hd=mean(hd),
@@ -83,21 +83,21 @@ knn_diy=function(data,k){
     
     
     #Compute distances
-    n=ncol(knn_data)-2
+    n=ncol(kmeans_data)-2
     m=nrow(X)
     nX=ncol(X)
-    x=matrix(nrow = nrow(knn_data),ncol = m)
+    x=matrix(nrow = nrow(kmeans_data),ncol = m)
     for(i in 1:m){
-      x[,i]=apply(X =knn_data[,-c(7,8)],MARGIN = 1,FUN = euclidian,b=X[i,-nX])
+      x[,i]=apply(X = kmeans_data[,-c(7,8)],MARGIN = 1,FUN = euclidian,b=X[i,-nX])
     }
-    for(i in 1:nrow(knn_data)){
-      knn_data$error[i]<-min(x[i,])
-      knn_data$cluster[i]<-which(x[i,]==min(x[i,]))
+    for(i in 1:nrow(kmeans_data)){
+      kmeans_data$error[i]<-min(x[i,])
+      kmeans_data$cluster[i]<-which(x[i,]==min(x[i,]))
     }
     x=NULL
     
     #Write error
-    error=c(error,sum(knn_data$error))
+    error=c(error,sum(kmeans_data$error))
     
     #Next iteration
     e=e+1
@@ -106,7 +106,7 @@ knn_diy=function(data,k){
     #
   }
   
-  return(knn_data)
+  return(kmeans_data)
 }
 
 
@@ -118,7 +118,7 @@ clusterExport(clust,"generate_random",envir = environment())
 clusterExport(clust,"euclidian",envir = environment())
 
 Start <- Sys.time()
-knn=parLapply(cl = clust,X = 1:5,fun = knn_diy,data=data_wo_factors)
+k_means=parLapply(cl = clust,X = 1:5,fun = kmeans_diy,data=data_wo_factors)
 end <- Sys.time()
 
 
@@ -130,7 +130,7 @@ time <- end - Start
 print(time)
 
 # 3.- Plot the first 2 dimensions of the clusters
-ggplot(knn[[2]],aes(x=price,y=speed,color=as.factor(cluster))) + geom_point()
+ggplot(k_means[[2]],aes(x=price,y=speed,color=as.factor(cluster))) + geom_point()
 
 
 # 4- Find the cluster with the highest average price and print it.
@@ -148,10 +148,10 @@ hpricefun <- function(datos){
   return(x)
 }
 
-hpricefun(knn[[2]]) #The highest price corresponds to the first element of the list (1 cluster).
+hpricefun(k_means[[2]]) #The highest price corresponds to the first element of the list (1 cluster).
 
 # 5.- Print a heat map using the values of the clusters centroids.
-clustersum=knn[[2]] %>% group_by(cluster) %>%  dplyr::summarize(price=mean(price),
+clustersum=k_means[[2]] %>% group_by(cluster) %>%  dplyr::summarize(price=mean(price),
                                                                 speed=mean(speed),
                                                                 hd=mean(hd),
                                                                 ram=mean(ram),
@@ -165,8 +165,8 @@ gplots::heatmap.2(x=clustersum,scale = "none",cexRow = 0.7,trace="none",density.
 # Elbow Graph (no lo pide)
 x=NULL
 y=NULL
-for (i in 1:length(knn)) {
-  y[i]=sum(knn[[i]]$error)
+for (i in 1:length(k_means)) {
+  y[i]=sum(k_means[[i]]$error)
   x[i]=i
 }
 
