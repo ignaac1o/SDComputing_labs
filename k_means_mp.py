@@ -104,3 +104,15 @@ if __name__ == "__main__":
   plt.ylabel("Speed", size = 16)
   sns.scatterplot(x="price", y="speed", hue="centroid", data=data_kmeans.drop("errors", axis = 1))
   plt.show()
+
+  print("-----------------------------------------------------------------------------------------------------------------------------------")
+  print("-------------------------------------------------------- HEAT MAP -----------------------------------------------------------------")
+  print("-----------------------------------------------------------------------------------------------------------------------------------")
+  # Print the heat map
+  data_kmeans_we = data_kmeans.drop("errors", axis = 1)
+  plt.figure(figsize=(10,5))
+  plt.title("Heat map")
+  plt.xlabel("Variables", size = 16,)
+  plt.ylabel("Centroids", size = 16)
+  sns.heatmap(data_kmeans_we.groupby('centroid').agg('mean').reset_index(drop = True))
+  plt.show() 
