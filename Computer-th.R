@@ -11,15 +11,15 @@ library(foreach)
 
 set.seed(13)
 
-data5k=read.csv(file = "computers5k.csv",header = T)
-data5k$id = NULL
-data5k$cd %<>% mapvalues(from = c("yes","no"), to = c("1","0"))  %>% as.factor()
-data5k$laptop %<>% mapvalues(from = c("yes","no"), to = c("1","0")) %>% as.factor()
-data5k$trend %<>% as.factor()
-summary(data5k)
+data=read.csv(file = "computers500k.csv",header = T)
+data$id = NULL
+data$cd %<>% mapvalues(from = c("yes","no"), to = c("1","0"))  %>% as.factor()
+data$laptop %<>% mapvalues(from = c("yes","no"), to = c("1","0")) %>% as.factor()
+data$trend %<>% as.factor()
+summary(data)
 
 #kmeans only work with numeric vectors
-data_wo_factors = data5k %>% dplyr::select(c(-cd,-laptop,-trend))
+data_wo_factors = data %>% dplyr::select(c(-cd,-laptop,-trend))
 
 no_cores=detectCores()
 
@@ -31,48 +31,44 @@ euclidian=function(a,b){
   sqrt(sum((a-b)^2))
 }
 
-knn_diy_th=function(data,k){
+kmeans_diy_th=function(data,k){
+  kmeans_data=as.matrix(scale(data_wo_factors))
+  colX=ncol(kmeans_data)
+  rowX=k
+  X=matrix(ncol = colX,nrow = rowX)
+  for(i in 1:rowX){
+    X[i,]=apply(X=kmeans_data,MARGIN = 2,generate_random)
+  }
+  X=cbind(X,1:2)
+  centroids_equal=FALSE
+  count=0
+  err=0
+  nrowX=nrow(X)
+  ncolX=ncol(X)
+  nrowkmeans=nrow(kmeans_data)
   
-  #Scale data
-  knn_data=as.data.frame(scale(data))
-  
-  #Generate random centroids
-  X=matrix(nrow=k,ncol=ncol(knn_data)+1)
-  #clusters=letters[1:k]
-  for (i in 1:nrow(X)) {
-    for(j in 1:ncol(knn_data)){
-      X[i,j]=generate_random(knn_data[,j]) 
+  while(centroids_equal==FALSE){
+    count=count+1
+    #Threads
+    clusts=makeCluster(no_cores,type = "FORK")
+    registerDoParallel(clusts)
+    x=foreach(i=1:nrowX,.combine = cbind) %dopar% apply(X =kmeans_data,MARGIN = 1,FUN = euclidian,b=X[i,-ncolX])
+    stopCluster(clusts)
+    #
+    cluster=c()
+    error=c()
+    if(k==1){
+      error=x
+      cluster=rep(1,nrowkmeans)
+    }else{
+      for(i in 1:nrowkmeans){
+        error[i]<-min(x[i,])
+        cluster[i]<-which(x[i,]==min(x[i,]))
+      }
     }
-  }
-  X[,ncol(knn_data)+1]=as.factor(letters[1:k])
-  
-  
-  #Compute Distances
-  n=ncol(knn_data)
-  m=nrow(X)
-  nX=ncol(X)
-  clusts=makeCluster(no_cores,type = "FORK")
-  registerDoParallel(clusts)
-  x=foreach(i=1:m,.combine = cbind) %dopar% apply(X =knn_data,MARGIN = 1,FUN = euclidian,b=X[i,-nX])
-  stopCluster(clusts)
-  if(k==1){
-    knn_data$error=x[i]
-    knn_data$cluster=1
-  }else{
-  for(i in 1:nrow(knn_data)){
-    knn_data$error[i]<-min(x[i,])
-    knn_data$cluster[i]<-which(x[i,]==min(x[i,]))
-  }
-  }
-  x=NULL
-
-  #Check errors
-  error=c(0,sum(knn_data$error))
-  e=2
-  
-  while(round(error[e],0)!= round(error[e-1],0)){
-    #Recode Clusters
-    X= knn_data %>% group_by(cluster) %>% 
+    kmeans_data=cbind(kmeans_data,error,cluster)
+    
+    X_new = kmeans_data %>% as.data.frame() %>% group_by(cluster) %>% 
       dplyr::summarize(price=mean(price),
                        speed=mean(speed),
                        hd=mean(hd),
@@ -81,47 +77,86 @@ knn_diy_th=function(data,k){
                        cores=mean(cores)) %>% 
       mutate(n_centroide=cluster) %>% 
       select(-cluster) %>% 
-      ungroup() %>% as.data.frame(.)
+      ungroup() %>% as.matrix()
     
-    #Compute distances
-    n=ncol(knn_data)-2
-    m=nrow(X)
-    nX=ncol(X)
-    clustes=makeCluster(no_cores,type = "FORK")
-    registerDoParallel(clustes)
-    x=foreach(i=1:m,.combine = cbind) %dopar% apply(X =knn_data,MARGIN = 1,FUN = euclidian,b=X[i,-nX])
-    stopCluster(clustes)
-    if(k==1){
-      knn_data$error=x[i]
-      knn_data$cluster=1
+    if(round(sum(error),0)==round(err,0)){
+      centroids_equal=TRUE
     }else{
-      for(i in 1:nrow(knn_data)){
-        knn_data$error[i]<-min(x[i,])
-        knn_data$cluster[i]<-which(x[i,]==min(x[i,]))
-      }
+      X=X_new
+      kmeans_data=kmeans_data[,-(7:8)]
+      err=sum(error)
+      X_new=NULL
+      x=NULL
     }
-    #x=NULL
-    
-    #Write error
-    error=c(error,sum(knn_data$error))
-    
-    #Next iteration
-    e=e+1
-    #
-    print(error)
-    #
+    print(count)
   }
-  
-  return(knn_data)
+  return(as.data.frame(kmeans_data))
 }
 
-########### BEGIN PARALLEL W THREADS ###############
 
+kmeans_diy=function(data,k){
+  kmeans_data=as.matrix(scale(data_wo_factors))
+  colX=ncol(kmeans_data)
+  rowX=k
+  X=matrix(ncol = colX,nrow = rowX)
+  for(i in 1:rowX){
+    X[i,]=apply(X=kmeans_data,MARGIN = 2,generate_random)
+  }
+  X=cbind(X,1:2)
+  centroids_equal=FALSE
+  x=matrix(ncol=k,nrow=nrow(kmeans_data))
+  ncolX=ncol(X)
+  nrowkmeans=nrow(kmeans_data)
+  count=0
+  err=0
+  while(centroids_equal==FALSE){
+    count=count+1
+    x=matrix(ncol=k,nrow=nrow(kmeans_data))
+    for(i in seq_len(k)){
+      x[,i]=apply(X=kmeans_data,MARGIN = 1,FUN = euclidian,b=X[i,-ncolX])
+    }
+    cluster=c()
+    error=c()
+    for(i in 1:nrowkmeans){
+      error[i]<-min(x[i,])
+      cluster[i]<-which(x[i,]==min(x[i,]))
+    }
+    
+    kmeans_data=cbind(kmeans_data,error,cluster)
+    
+    X_new = kmeans_data %>% as.data.frame() %>% group_by(cluster) %>% 
+      dplyr::summarize(price=mean(price),
+                       speed=mean(speed),
+                       hd=mean(hd),
+                       ram=mean(ram),
+                       screen=mean(screen),
+                       cores=mean(cores)) %>% 
+      mutate(n_centroide=cluster) %>% 
+      select(-cluster) %>% 
+      ungroup() %>% as.matrix()
+    
+    
+    #if(all_equal(round(X_new,3),round(X,3))==TRUE){
+    if(round(sum(error),0)==round(err,0)){
+      centroids_equal=TRUE
+    }else{
+      X=X_new
+      kmeans_data=kmeans_data[,-(7:8)]
+      err=sum(error)
+      X_new=NULL
+      x=NULL
+    }
+    print(count)
+  } 
+  return(as.data.frame(kmeans_data))
+}
+
+########### PARALLEL W THREADS  function ###############
 
 obtain_k_optimal_threads=function(data,k){
   knn=NULL
   for (j in 1:k) {
-    knn[j]=list(knn_diy_th(data,j))
+    knn[j]=list(kmeans_diy_th(data,j))
   }
   return(knn)
 }
@@ -130,14 +165,38 @@ start=Sys.time()
 knn=obtain_k_optimal_threads(data_wo_factors,5)
 stop=Sys.time()
 
+#Time to compute knn_diy_th functions for different values of k
 print(stop-start)
 
-############# STOP THREADS #########################
+############# obtain k optimal using THREADS and original kmeans_diy #########################
+
+clust=makeCluster(no_cores,type = "FORK")
+registerDoParallel(clust)
+
+
+#Do function to obtain elbow graph in parallel
+obtain_k_optimal_th=function(k,data){
+  knn=foreach(i=1:k) %dopar% kmeans_diy(data,i)
+}
+
+#MEASURE TIME
+start=Sys.time()
+kmeans=obtain_k_optimal_th(5,data_wo_factors)
+stop=Sys.time()
+
+stopCluster(clust)
+
+#Execution time knn_diy for different values of k using threads
+print(stop-start)
+
+
+
+#Elbow Graph
 
 x=NULL
 y=NULL
-for (i in 1:length(knn)) {
-  y[i]=sum(knn[[i]]$error)
+for (i in 1:length(kmeans)) {
+  y[i]=sum(kmeans[[i]]$error)
   x[i]=i
 }
 df=data.frame(x,y)
@@ -147,7 +206,7 @@ ggplot(data = df, aes(x=x,y=y)) + geom_point() + geom_line()
 
 
 #PLOT FIRST TWO DIMMENSIONS
-ggplot(knn[[2]],aes(x=price,y=speed,color=as.factor(cluster))) + geom_point()
+ggplot(kmeans[[2]],aes(x=price,y=speed,color=as.factor(cluster))) + geom_point()
 
 #FIND CLUSTER WITH HIGEST AVERAGE PRICE
 hpricefun <- function(datos){
@@ -163,11 +222,11 @@ hpricefun <- function(datos){
   return(x)
 }
 
-hpricefun(knn[[2]])
+hpricefun(kmeans[[2]])
 
 
 #PRINT HEATMAP
-clustersum=knn[[2]] %>% group_by(cluster) %>%  dplyr::summarize(price=mean(price),
+clustersum=kmeans[[2]] %>% group_by(cluster) %>%  dplyr::summarize(price=mean(price),
                                                                 speed=mean(speed),
                                                                 hd=mean(hd),
                                                                 ram=mean(ram),
