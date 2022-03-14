@@ -600,4 +600,21 @@ gplots::heatmap.2(x=clustersum,scale = "none",cexRow = 0.7,trace="none",density.
 
 ## PYTHON. 
 
+For the python version of the project, the development is practically equal, of course adapting the language and the code to the needs of Python. 
 
+### Serial version. 
+
+The main function is quite similar to the R version.  It computes several iterations relocating centroids to achieve the final distribution of clusters. The algorithm stops when the centroids of the iteration i and the ones of the iteration i-1 match.
+
+Instead of creating the functions generate_random and eucliden prior to the creation of the main function, these calculations were made directly in the main function. It also returns a dataset with two new columns, one corresponding to the errors and another one corresponding to the centroids. 
+
+Once the main function was created, we proceeded with the next sections. For the measurement of the time, we applied the same idea as in R, computing the measurement and the main function at the same time and storing the result in a variable, so we only had to make the calculations once. 
+
+The results of the heatmap, elbow graph... etc, are equal. For instance, the elbow graph suggests again that the optimal number of clusters is k=2. 
+
+
+### Parallel version. 
+
+The parallel version is also quite similar to R. We did not change the main function, but the call to it. This time it is called through a pool.apply: "[pool.apply(k_means, args=(data_norm, i+1)) for i in range(n)]" where "n" is the number of clusters introduced by the user. 
+
+Again, the plots and results are equal to the serial version which are also equal to the 
