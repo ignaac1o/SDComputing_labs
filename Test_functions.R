@@ -248,7 +248,7 @@ for (i in 1:nrow(knn_data)) {
 stopCluster(clust)
 
 ##############################################################################
-# Begin New algorithm
+# Begin New algorithm Serial
 
 generate_random=function(vector){
   return(runif(1,min(vector),max(vector)))
@@ -326,6 +326,116 @@ print(count)
 stop=Sys.time()
 
 ggplot(kmeans_data,aes(x=price,y=speed,color=as.factor(cluster))) + geom_point()
+
+
+
+##############################################################################
+# Begin New algorithm Threads
+generate_random=function(vector){
+  return(runif(1,min(vector),max(vector)))
+}
+
+euclidian=function(a,b){
+  return(sqrt(sum((a-b)^2)))
+}
+
+data5k=read.csv(file = "computers500k.csv",header = T)
+data5k$id = NULL
+data5k$cd %<>% mapvalues(from = c("yes","no"), to = c("1","0"))  %>% as.factor()
+data5k$laptop %<>% mapvalues(from = c("yes","no"), to = c("1","0")) %>% as.factor()
+data5k$trend %<>% as.factor() 
+summary(data5k)
+
+#kmeans only works with numeric vectors
+data_wo_factors = data5k %>% dplyr::select(c(-cd,-laptop,-trend))
+k=2
+
+no_cores=detectCores()
+
+kmeans_data=as.matrix(scale(data_wo_factors))
+colX=ncol(kmeans_data)
+rowX=k
+X=matrix(ncol = colX,nrow = rowX)
+for(i in 1:rowX){
+  X[i,]=apply(X=kmeans_data,MARGIN = 2,generate_random)
+}
+X=cbind(X,1:2)
+centroids_equal=FALSE
+x=matrix(ncol=k,nrow=nrow(kmeans_data))
+ncolX=ncol(X)
+nrowkmeans=nrow(kmeans_data)
+count=0
+err=0
+nrowX=nrow(X)
+ncolX=ncol(X)
+
+while(centroids_equal==FALSE){
+  count=count+1
+  #Threads
+  clusts=makeCluster(no_cores,type = "FORK")
+  registerDoParallel(clusts)
+  x=foreach(i=1:nrowX,.combine = cbind) %dopar% apply(X =kmeans_data,MARGIN = 1,FUN = euclidian,b=X[i,-ncolX])
+  stopCluster(clusts)
+  #
+  cluster=c()
+  error=c()
+  for(i in 1:nrowkmeans){
+    error[i]<-min(x[i,])
+    cluster[i]<-which(x[i,]==min(x[i,]))
+  }
+  kmeans_data=cbind(kmeans_data,error,cluster)
+  
+  X_new = kmeans_data %>% as.data.frame() %>% group_by(cluster) %>% 
+    dplyr::summarize(price=mean(price),
+                     speed=mean(speed),
+                     hd=mean(hd),
+                     ram=mean(ram),
+                     screen=mean(screen),
+                     cores=mean(cores)) %>% 
+    mutate(n_centroide=cluster) %>% 
+    select(-cluster) %>% 
+    ungroup() %>% as.matrix()
+  
+  if(round(sum(error),0)==round(err,0)){
+    centroids_equal=TRUE
+  }else{
+    X=X_new
+    kmeans_data=kmeans_data[,-(7:8)]
+    err=sum(error)
+    X_new=NULL
+    x=NULL
+  }
+  print(count)
+}
+
+
+
+
+
+
+
+no_cores=detectCores()
+clust=makeCluster(no_cores,type = "FORK")
+registerDoParallel(clust)
+
+
+#Do function to obtain elbow graph in parallel
+obtain_k_optimal_th=function(k,data){
+  knn=foreach(i=1:k) %dopar% knn_diy_th(data,i)
+}
+
+#microbenchmark(knn=obtain_k_optimal_th(5,data_wo_factors),times=1)
+#MEASURE TIME
+start=Sys.time()
+knn=obtain_k_optimal_th(5,data_wo_factors)
+stop=Sys.time()
+
+stopCluster(clust)
+
+
+
+
+
 
 
 
