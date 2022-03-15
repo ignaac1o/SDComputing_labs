@@ -11,24 +11,13 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Creation of the dataset.
 
-To begin with the project, we had to generate a random dataset in Python thanks to the file named "computers-generator.py". For the development of the project we generated a dataset of 5000 observations. This dataset, saved in the file "computers.csv" is about a list of computers and it contains some information about them: "id","speed","hd","ram","screen","cd","multi","premium","ads","trend".
-
-## Laboratory Description: You are asked to extract useful information the computer data set implementing a program using the k-means algorithm in Python and in R.
+To begin with the project, we had to generate a random dataset in Python thanks to the file named "computers-generator.py". For the development of the project we generated a dataset of 5000 observations. This dataset, saved in the file "computers5k.csv" is about a list of computers and it contains some information about them: "id","speed","hd","ram","screen","cd","multi","premium","ads","trend".
 
 ## Implementation in R: Part one - Serial version
 
-### 1.- Construct the elbow graph and find the optimal clusters number (k). 
-### OPTION A
-### 2.- Implement the k-means algorithm
-### 3.- Cluster the data using the optimum value using k-means.
-### OPTION B
-### 3.- Cluster the data using the optimum value using k-means with an existing function.
-
 We have chosen $\texttt{Option A}$, where we had to implement the k-means algorithm from zero instead of using the k-means existing function from the R libraries. 
 
-The first thing that we had to do was to read the dataset generated. After removing the variable "id" and transforming the categorical variables "cd" and "laptop" into binary variables, we began creating the function for the k-means algorithm. 
-
-```{r, cache=TRUE}
+```{r, cache=TRUE,include=FALSE}
 library(plyr)
 library(dplyr)
 library(factoextra)
@@ -47,6 +36,7 @@ data5k$trend %<>% as.factor()
 data_wo_factors = data5k %>% dplyr::select(c(-cd,-laptop,-trend))
 ```
 
+### 2.- Implement the k-means algorithm.
 
 First of all, we created a function called "generate_random", which selects a random value from the elements of a given vector. Inside the k-means algorithm, this function will be used for every column of the dataset in order to generate the random centroids.
 
@@ -57,14 +47,13 @@ generate_random=function(vector){
 ```
 
 
-Right after that ant before the creation of the k-means function, we implemented another small function called "euclidean", this time to compute the euclidean distance between two points in space. 
+Right after that and before the creation of the k-means function, we implemented another small function called "euclidean", this time to compute the euclidean distance between two points in space. 
 
 ```{r, cache=TRUE}
 euclidian=function(a,b){
-  reutunr(sqrt(sum((a-b)^2)))
+  return(sqrt(sum((a-b)^2)))
 }
 ```
-
 
 Now, we proceed with the implementation of the k-means algorithm. Let's show the function created and explain every step taken afterwards. 
 
@@ -98,8 +87,6 @@ kmeans_diy=function(data,k){
     }
     
     kmeans_data=cbind(kmeans_data,error,cluster)
-    #kmeans_data$cluster=cluster
-    #kmeans_data$error=error
     
     X_new = kmeans_data %>% as.data.frame() %>% group_by(cluster) %>% 
       dplyr::summarize(price=mean(price),
@@ -110,17 +97,14 @@ kmeans_diy=function(data,k){
                        cores=mean(cores)) %>% 
       mutate(n_centroide=cluster) %>% 
       select(-cluster) %>% 
-      ungroup() %>% as.matrix
+      ungroup() %>% as.matrix()
     
-    
-    #if(all_equal(round(X_new,3),round(X,3))==TRUE){
+
     if(round(sum(error),0)==round(err,0)){
       centroids_equal=TRUE
     }else{
       X=X_new
       kmeans_data=kmeans_data[,-(7:8)]
-      #kmeans_data$cluster=NULL
-      #kmeans_data$error=NULL
       err=sum(error)
       X_new=NULL
       x=NULL
@@ -141,10 +125,8 @@ This process is repeated until the error between the previous interaction and th
 
 Finally, the function returns a new dataset (the original is not altered at all) with the new columns corresponding to the errors (the distances between the observation and the centroids) and the centroids that every observation are assigned to. 
 
-
 Once the main function is created, we are asked to answer a few exercises. 
 
-### 2.- Implement the k-means algorithm.
 ### 3.- Cluster the data using the optimum value using k-means.
 
 In order to answer these two sections, we created a function called "obtain_k_optimal_serial": 
@@ -161,26 +143,27 @@ obtain_k_optimal_serial=function(data,k){
 
 This function computes the main function created for the k-means algorithm for every number of centroids that we introduce. If we introduce k=5, it will evaluate the function for k=1,2,...,5. Once these operations are done, we can plot the corresponding elbow graph to find out which of the k values is the optimal (section number 5).
 
-
 ### 4.- Measure time.
 
 In order to avoid having to compute the main function several times and then doing it again in order to measure the time, we are going to start a counting system right before calling the function, then proceed to call the function and save the results in the variable "k_means" and then stop the count once the function has finished. Right after that, we operate the end time minus the start time and get the time it takes for the function to work. Thus, we can measure the time and implement the function at the same time. Moreover, having the results stored in a variable allows us to answer another sections without having to call the function again (for instance, section number 6.)
 
-```{r, cache=TRUE}
+```{r, cache=TRUE,results=FALSE,warning=FALSE}
 start = Sys.time()
 k_means = obtain_k_optimal_serial(data_wo_factors,5)
 stop=Sys.time()
-
-stop-start
 ```
 
-Thanks to this count, we can confirm that the time it takes for the main function to evaluate the cases k=1,2,3,4,5, is 10.17197 minutes. Of course, when we implement this same function with parallelism and threads, a lower time will be expected. 
+```{r, cache=TRUE}
+print(stop-start)
+```
+
+Thanks to this count, we can know the time it takes for the main function to evaluate the cases k=1,2,3,4,5. Of course, when we implement this same function with parallelism and threads, a lower time will be expected. 
 
 ### 5.- Plot the results of the elbow graph.
 
 For the elbow graph, we created a data frame (named "df") with two vectors: the vector x, corresponding to the X axis, which contains indexes from 1 to the number of centroids; and vector y, corresponding to the Y axis, containing the sum of the errors from the data returned by the main function. Once that was done, we implemented the following ggplot: 
 
-```{r, cache=TRUE}
+```{r, cache=TRUE,include=FALSE}
 x=NULL
 y=NULL
 for (i in 1:length(k_means)) {
@@ -191,7 +174,7 @@ for (i in 1:length(k_means)) {
 df=data.frame(x,y)
 ```
 
-```{r, cache=TRUE}
+```{r, cache=TRUE,out.width="70%"}
 ggplot(data = df, aes(x=x,y=y)) + geom_point() + geom_line()
 ```
 
@@ -201,7 +184,7 @@ This elbow graph suggests that the optimal number of clusters is k=2, since from
 
 As we stated before, having the results stored in a variable can be quite useful and this is one of those cases. In order to plot the first 2 dimensions of clusters, we just had to plot the following: 
 
-```{r, cache=TRUE}
+```{r, cache=TRUE,out.width="70%"}
 ggplot(k_means[[2]],aes(x=price,y=speed,color=as.factor(cluster))) + geom_point()
 ```
 
@@ -234,7 +217,7 @@ It is clear that the highest average price corresponds to the second case, i.e.,
 
 ### 8.- Print a heat map using the values of the clusters centroids.
 
-```{r, cache=TRUE}
+```{r, cache=TRUE,out.width="70%"}
 clustersum=k_means[[2]] %>% group_by(cluster) %>%  dplyr::summarize(price=mean(price),
                                                                 speed=mean(speed),
                                                                 hd=mean(hd),
@@ -249,14 +232,12 @@ gplots::heatmap.2(x=clustersum,scale = "none",cexRow = 0.7,trace="none",density.
 ## Implementation in R: Part two - Parallel implementation, multiprocessing
 
 ### 1.- Write a parallel version of your program using multiprocessing.
-### 2.- Measure the time and optimize the program to get the fastest version you can.
 
-For this part of the project, all the first steps and identical. What is different is the call to the main function, where we had to implement the "ClusterExport" function. 
+For this part of the project, the function that we will use to compute kmeans is the same as the one seen before. Only few changes were made on the centroids recalculation, because we were having trouble using the pipe notation "%>%". What is different is the call to the main function, made to compute the elbow graph and to choose the best k possible. For this point we had to implement the "ClusterExport" function to export all the variables and functions that could be used by the different processes. 
 
 That being said, here is how to implement it: 
 
-
-```{r, cache=TRUE, echo = FALSE, eval = TRUE}
+```{r, cache=TRUE, include=FALSE}
 library(plyr)
 library(dplyr)
 library(factoextra)
@@ -267,9 +248,8 @@ library(parallel)
 library(doParallel)
 library(foreach)
 
-set.seed(15)
 
-data5k=read.csv(file = "computers5k.csv",header = T)
+data5k=read.csv(file = "computers500k.csv",header = T)
 data5k$id = NULL
 data5k$cd %<>% mapvalues(from = c("yes","no"), to = c("1","0"))  %>% as.factor()
 data5k$laptop %<>% mapvalues(from = c("yes","no"), to = c("1","0")) %>% as.factor()
@@ -294,77 +274,56 @@ euclidian=function(a,b){
 }
 
 kmeans_diy_mp=function(data,k){
-  
-  #Scale data
-  kmeans_data=as.data.frame(scale(data))
-  
-  #Generate random centroids
-  X=matrix(nrow=k,ncol=ncol(kmeans_data)+1)
-  clusters=letters[1:k]
-  for (i in 1:nrow(X)) {
-    for(j in 1:ncol(kmeans_datamp)){
-      X[i,j]=generate_random(kmeans_data[,j]) 
+   kmeans_data=as.matrix(scale(data_wo_factors))
+  colX=ncol(kmeans_data)
+  rowX=k
+  X=matrix(ncol = colX,nrow = rowX)
+  for(i in 1:rowX){
+    X[i,]=apply(X=kmeans_data,MARGIN = 2,generate_random)
+  }
+  X=cbind(X,1:2)
+  centroids_equal=FALSE
+  x=matrix(ncol=k,nrow=nrow(kmeans_data))
+  ncolX=ncol(X)
+  nrowkmeans=nrow(kmeans_data)
+  count=0
+  err=0
+  while(centroids_equal==FALSE){
+    count=count+1
+    x=matrix(ncol=k,nrow=nrow(kmeans_data))
+    for(i in seq_len(k)){
+      x[,i]=apply(X=kmeans_data,MARGIN = 1,FUN = euclidian,b=X[i,-ncolX])
     }
-  }
-  X[,ncol(kmeans_data)+1]=as.factor(letters[1:k])
-  
-  
-  #Compute Distances
-  n=ncol(kmeans_data)
-  m=nrow(X)
-  nX=ncol(X)
-  x=matrix(nrow = nrow(kmeans_data),ncol = m)
-  for(i in 1:m){
-    x[,i]=apply(X =kmeans_data,MARGIN = 1,FUN = euclidian,b=X[i,-nX])
-  }
-  for(i in 1:nrow(kmeans_data)){
-    kmeans_data$error[i]<-min(x[i,])
-    kmeans_data$cluster[i]<-which(x[i,]==min(x[i,]))
-  }
-  x=NULL
-
-  #Check errors
-  error=c(0,sum(kmeans_data$error))
-  e=2
-  
-  while(round(error[e],0)!= round(error[e-1],0)){
-
-    
-    X=as.data.frame(dplyr::ungroup(dplyr::select(plyr::mutate(.data = dplyr::summarize(.data=dplyr::group_by(.data = kmeans_data,cluster),
-                                                                                       price=mean(price),
-                                                                                       speed=mean(speed),
-                                                                                       hd=mean(hd),
-                                                                                       ram=mean(ram),
-                                                                                       screen=mean(screen),
-                                                                                       cores=mean(cores)),
-                                                              n_centroide=cluster),-cluster)))
-    
-    
-    #Compute distances
-    n=ncol(kmeans_data)-2
-    m=nrow(X)
-    nX=ncol(X)
-    x=matrix(nrow = nrow(kmeans_data),ncol = m)
-    for(i in 1:m){
-      x[,i]=apply(X = kmeans_data[,-c(7,8)],MARGIN = 1,FUN = euclidian,b=X[i,-nX])
+    cluster=c()
+    error=c()
+    for(i in 1:nrowkmeans){
+      error[i]<-min(x[i,])
+      cluster[i]<-which(x[i,]==min(x[i,]))
     }
-    for(i in 1:nrow(kmeans_data)){
-      kmeans_data$error[i]<-min(x[i,])
-      kmeans_data$cluster[i]<-which(x[i,]==min(x[i,]))
+    
+    kmeans_data=cbind(kmeans_data,error,cluster)
+    
+    X_new = as.matrix(dplyr::ungroup(dplyr::select(plyr::mutate(.data = dplyr::summarize(.data=dplyr::group_by(.data = as.data.frame(kmeans_data),cluster),
+                                      price=mean(price),
+                                      speed=mean(speed),
+                                      hd=mean(hd),
+                                      ram=mean(ram),                                                                                            screen=mean(screen),
+                                      cores=mean(cores)),
+                    n_centroide=cluster),-cluster)))
+    
+    
+    if(round(sum(error),0)==round(err,0)){
+      centroids_equal=TRUE
+    }else{
+      X=X_new
+      kmeans_data=kmeans_data[,-(7:8)]
+      err=sum(error)
+      X_new=NULL
+      x=NULL
     }
-    x=NULL
-    
-    #Write error
-    error=c(error,sum(kmeans_data$error))
-    
-    #Next iteration
-    e=e+1
-    #
-    print(e)
-    #
-  }
-  
-  return(kmeans_data)
+    print(count)
+  } 
+  return(as.data.frame(kmeans_data))
 }
 ```
 
@@ -383,14 +342,20 @@ end <- Sys.time()
 stopCluster(clust)
 ```
 
+### 2.- Measure the time and optimize the program to get the fastest version you can.
 
-Again, we chose to compute the measuring of the time and the main function at the same time. The main function of the k-means algorithm is now called through a parLapply function. 
+Again, we chose to compute the measuring of the time and the main function at the same time. The main function of the k-means algorithm is now called through a parLapply function, which is made to allow parallelism in R. 
 
-The measured time is now of 8.187165 minutes, which is smaller than the time with the serial version. 
+
+```{r}
+end-Start
+```
+
+The measured time is now is about two times faster than the time with the serial version.
 
 ### 3.- Plot the first 2 dimensions of the clusters.
 
-```{r, cache=TRUE}
+```{r, cache=TRUE,out.width="70%"}
 ggplot(k_means_mp[[2]],aes(x=price,y=speed,color=as.factor(cluster))) + geom_point()
 ```
 
@@ -398,11 +363,11 @@ ggplot(k_means_mp[[2]],aes(x=price,y=speed,color=as.factor(cluster))) + geom_poi
 
 The function used is exactly the same as in the serial version, but this time applied to the dataset generated with the multiprocess k-means function. 
 
-```{r, echo = FALSE, eval=TRUE}
+```{r, include=FALSE}
 hpricefun <- function(datos){
   x = list()
   n = ncol(datos)
-  datos[,n] %<>% as.factor()
+  datos[,n]=as.factor(datos[,n])
   k = length(levels(datos[,n]))
   for(i in 1:k){
     ind1 <- which(datos$cluster==i)
@@ -421,7 +386,7 @@ Here, the highest average price corresponds to the case k=1, i.e., with 1 cluste
 
 ### 5.- Print a heat map using the values of the clusters centroids.
 
-```{r, cache=TRUE}
+```{r, cache=TRUE,include=FALSE}
 clustersum=k_means_mp[[2]] %>% group_by(cluster) %>%  dplyr::summarize(price=mean(price),
                                                                 speed=mean(speed),
                                                                 hd=mean(hd),
@@ -429,60 +394,54 @@ clustersum=k_means_mp[[2]] %>% group_by(cluster) %>%  dplyr::summarize(price=mea
                                                                 screen=mean(screen),
                                                                 cores=mean(cores)) %>% 
   dplyr::select(-1) %>% as.matrix()
+```
 
+
+```{r, cache=TRUE,out.width="70%"}
 gplots::heatmap.2(x=clustersum,scale = "none",cexRow = 0.7,trace="none",density.info = "none")
 ```
 
 
 ## Implementation in R: Part three – Parallel implementation, threading
 
-### 1.- Write a parallel version of you program using multiprocessing.
+### 1.- Write a parallel version of you program using Threads.
 
-For the parallel version, we made an slight change in the main function. When computing the distances between the observations and the centroids, these distances are being computed for each cluster at the same time, instead of computing the distances from the observations to the first cluster, then to the second, etc., as it happened in the serial version. Thus, the main function is as follows: 
+For the parallel version using threads we tried two different approaches. First we changed the main function to compute knn means and add parallelism for calculating euclidean distances. We the tested this function for different values of k (as we did on the serial version) and the time of execution was about 7.8 minutes.
 
 ```{r, cache=TRUE}
+no_cores=detectCores()
 kmeans_diy_th=function(data,k){
-  
-  #Scale data
-  kmeans_data=as.data.frame(scale(data))
-  
-  #Generate random centroids
-  X=matrix(nrow=k,ncol=ncol(kmeans_data)+1)
-  #clusters=letters[1:k]
-  for (i in 1:nrow(X)) {
-    for(j in 1:ncol(kmeans_data)){
-      X[i,j]=generate_random(kmeans_data[,j]) 
-    }
+ kmeans_data=as.matrix(scale(data_wo_factors))
+  colX=ncol(kmeans_data)
+  rowX=k
+  X=matrix(ncol = colX,nrow = rowX)
+  for(i in 1:rowX){
+    X[i,]=apply(X=kmeans_data,MARGIN = 2,generate_random)
   }
-  X[,ncol(kmeans_data)+1]=as.factor(letters[1:k])
-  
-  
-  #Compute Distances
-  n=ncol(kmeans_data)
-  m=nrow(X)
-  nX=ncol(X)
-  clusts=makeCluster(no_cores,type = "FORK")
-  registerDoParallel(clusts)
-  x=foreach(i=1:m,.combine = cbind) %dopar% apply(X = kmeans_data,MARGIN = 1,FUN = euclidian,b=X[i,-nX])
-  stopCluster(clusts)
-  if(k==1){
-    kmeans_data$error=x[i]
-    kmeans_data$cluster=1
-  }else{
-  for(i in 1:nrow(kmeans_data)){
-    kmeans_data$error[i]<-min(x[i,])
-    kmeans_data$cluster[i]<-which(x[i,]==min(x[i,]))
-  }
-  }
-  x=NULL
+  X=cbind(X,1:2)
+  centroids_equal=FALSE
+  count=0
+  err=0
+  nrowX=nrow(X)
+  ncolX=ncol(X)
 
-  #Check errors
-  error=c(0,sum(kmeans_data$error))
-  e=2
-  
-  while(round(error[e],0)!= round(error[e-1],0)){
-    #Recode Clusters
-    X = kmeans_data %>% group_by(cluster) %>% 
+  while(centroids_equal==FALSE){
+    count=count+1
+    #Threads
+    clusts=makeCluster(no_cores,type = "FORK")
+    registerDoParallel(clusts)
+    x=foreach(i=1:nrowX,.combine = cbind) %dopar% apply(X =kmeans_data,MARGIN = 1,FUN = euclidian,b=X[i,-ncolX])
+    stopCluster(clusts)
+    #
+    cluster=c()
+    error=c()
+    for(i in 1:nrowkmeans){
+      error[i]<-min(x[i,])
+      cluster[i]<-which(x[i,]==min(x[i,]))
+    }
+    kmeans_data=cbind(kmeans_data,error,cluster)
+    
+    X_new = kmeans_data %>% as.data.frame() %>% group_by(cluster) %>% 
       dplyr::summarize(price=mean(price),
                        speed=mean(speed),
                        hd=mean(hd),
@@ -491,70 +450,59 @@ kmeans_diy_th=function(data,k){
                        cores=mean(cores)) %>% 
       mutate(n_centroide=cluster) %>% 
       select(-cluster) %>% 
-      ungroup() %>% as.data.frame(.)
+      ungroup() %>% as.matrix()
     
-    #Compute distances
-    n=ncol(kmeans_data)-2
-    m=nrow(X)
-    nX=ncol(X)
-    clustes=makeCluster(no_cores,type = "FORK")
-    registerDoParallel(clustes)
-    x=foreach(i=1:m,.combine = cbind) %dopar% apply(X = kmeans_data,MARGIN = 1,FUN = euclidian,b=X[i,-nX])
-    stopCluster(clustes)
-    if(k==1){
-      kmeans_data$error=x[i]
-      kmeans_data$cluster=1
+    if(round(sum(error),0)==round(err,0)){
+      centroids_equal=TRUE
     }else{
-      for(i in 1:nrow(kmeans_data)){
-        kmeans_data$error[i]<-min(x[i,])
-        kmeans_data$cluster[i]<-which(x[i,]==min(x[i,]))
-      }
+      X=X_new
+      kmeans_data=kmeans_data[,-(7:8)]
+      err=sum(error)
+      X_new=NULL
+      x=NULL
     }
-    #x=NULL
-    
-    #Write error
-    error=c(error,sum(kmeans_data$error))
-    
-    #Next iteration
-    e=e+1
-    #
-    print(error)
-    #
-  }
-  
-  return(kmeans_data)
+    print(count)
+    }
+  return(as.data.frame(kmeans_data))
 }
 ```
 
-Now, the rest of the sections are identical. 
+Then, as we wanted to compare the speed of processing with the rest of cases we also kept the function "kmeans_diy()" that we created initially and compute the algorithm to obtain the elbow graph in parallel using threads. 
 
 ### 2.- Measure the time and optimize the program to get the fastest version you can.
 
 ```{r, cache=TRUE}
-obtain_k_optimal_threads=function(data,k){
-  k_means=NULL
-  for (j in 1:k) {
-    k_means[j]=list(kmeans_diy_th(data,j))
-  }
-  return(k_means)
+no_cores=detectCores()
+clust=makeCluster(no_cores,type = "FORK")
+registerDoParallel(clust)
+
+
+#Do function to obtain elbow graph in parallel
+obtain_k_optimal_th=function(k,data){
+  k_means_th=foreach(i=1:k) %dopar% kmeans_diy(data,i)
 }
 
+#MEASURE TIME
 start=Sys.time()
-k_means_th=obtain_k_optimal_threads(data_wo_factors,5)
+k_means_th=obtain_k_optimal_th(5,data_wo_factors)
 stop=Sys.time()
+
+stopCluster(clust)
 
 print(stop-start)
 ```
 
+In this approach we got that the time of execution was a little bit faster than the multiprocess version, and much faster than the serial one, as expected.
+
 ### 3.- Plot the first 2 dimensions of the clusters.
 
-```{r, cache=TRUE}
+```{r, cache=TRUE,out.width="70%"}
 ggplot(k_means_th[[2]],aes(x=price,y=speed,color=as.factor(cluster))) + geom_point()
 ```
 
 ### 4- Find the cluster with the highest average price and print it.
 
-```{r, cache=TRUE}
+```{r, cache=TRUE,include=FALSE}
 hpricefun <- function(datos){
   x = list()
   n = ncol(datos)
@@ -567,14 +515,17 @@ hpricefun <- function(datos){
   }
   return(x)
 }
+```
 
+
+```{r, cache=TRUE}
 hpricefun(k_means_th[[2]])
 ```
 
 
 ### 5.- Print a heat map using the values of the clusters centroids.
 
-```{r, cache=TRUE}
+```{r, cache=TRUE,include=FALSE}
 clustersum=k_means_th[[2]] %>% group_by(cluster) %>%  dplyr::summarize(price=mean(price),
                                                                 speed=mean(speed),
                                                                 hd=mean(hd),
@@ -582,29 +533,31 @@ clustersum=k_means_th[[2]] %>% group_by(cluster) %>%  dplyr::summarize(price=mea
                                                                 screen=mean(screen),
                                                                 cores=mean(cores)) %>% 
                     dplyr::select(-1) %>% as.matrix()
-
-gplots::heatmap.2(x=clustersum,scale = "none",cexRow = 0.7,trace="none",density.info = "none")
-
 ```
 
 
-## PYTHON. 
-
-For the python version of the project, the development is practically equal, of course adapting the language and the code to the needs of Python. 
-
-### Serial version. 
-
-The main function is quite similar to the R version.  It computes several iterations relocating centroids to achieve the final distribution of clusters. The algorithm stops when the centroids of the iteration i and the ones of the iteration i-1 match.
-
-Instead of creating the functions generate_random and eucliden prior to the creation of the main function, these calculations were made directly in the main function. It also returns a dataset with two new columns, one corresponding to the errors and another one corresponding to the centroids. 
-
-Once the main function was created, we proceeded with the next sections. For the measurement of the time, we applied the same idea as in R, computing the measurement and the main function at the same time and storing the result in a variable, so we only had to make the calculations once. 
-
-The results of the heatmap, elbow graph... etc, are equal. For instance, the elbow graph suggests again that the optimal number of clusters is k=2. 
+```{r, cache=TRUE,out.width="70%"}
+gplots::heatmap.2(x=clustersum,scale = "none",cexRow = 0.7,trace="none",density.info = "none")
+```
 
 
-### Parallel version. 
+<!-- ## PYTHON.  -->
 
-The parallel version is also quite similar to R. We did not change the main function, but the call to it. This time it is called through a pool.apply: "[pool.apply(k_means, args=(data_norm, i+1)) for i in range(n)]" where "n" is the number of clusters introduced by the user. 
+<!-- For the python version of the project, the development is practically equal, of course adapting the language and the code to the needs of Python.  -->
 
-Again, the plots and results are equal to the serial version which are also equal to the 
+<!-- ### Serial version.  -->
+
+<!-- The main function is quite similar to the R version.  It computes several iterations relocating centroids to achieve the final distribution of clusters. The algorithm stops when the centroids of the iteration i and the ones of the iteration i-1 match. -->
+
+<!-- Instead of creating the functions generate_random and eucliden prior to the creation of the main function, these calculations were made directly in the main function. It also returns a dataset with two new columns, one corresponding to the errors and another one corresponding to the centroids.  -->
+
+<!-- Once the main function was created, we proceeded with the next sections. For the measurement of the time, we applied the same idea as in R, computing the measurement and the main function at the same time and storing the result in a variable, so we only had to make the calculations once.  -->
+
+<!-- The results of the heatmap, elbow graph... etc, are equal. For instance, the elbow graph suggests again that the optimal number of clusters is k=2.  -->
+
+
+<!-- ### Parallel version.  -->
+
+<!-- The parallel version is also quite similar to R. We did not change the main function, but the call to it. This time it is called through a pool.apply: "[pool.apply(k_means, args=(data_norm, i+1)) for i in range(n)]" where "n" is the number of clusters introduced by the user.  -->
+
+<!-- Again, the plots and results are equal to the serial version which are also equal to the  -->
