@@ -10,7 +10,10 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import time
 import multiprocessing as mp
+from itertools import repeat
 import threading as th
+
+
 
 # Implement k-means algorithm
 def k_means(dataset, k, output):
@@ -25,39 +28,58 @@ def k_means(dataset, k, output):
     '''
 
     data = dataset.copy()
+    it = 0
 
     # Initialize centroids and error.
-    n = data.shape[0]
-    new_centroids = data.sample(n=k, random_state=100).reset_index(drop=True) # Select random observations as initial centroids.
+    n , p = data.shape[0] , data.shape[1]
+    new_centroids = np.array(data.sample(n=k, random_state = 100).reset_index(drop=True)) # Select random observations as initial centroids.
+    new_centroids = np.c_[ new_centroids, np.ones(new_centroids.shape[0]) ] 
     error = np.array([])
-    it = 0
     n_iter = True
-    old_centroids = np.zeros((k, data.shape[1]))
-
+    data = data.to_numpy()
+    data = np.c_[data, np.ones(data.shape[0])] 
     while(n_iter):
       errors = np.array([n])
-      distances = pd.DataFrame()
+      distances = np.zeros((n, k))
       for i in range(k): 
-        distances.loc[:,i] = np.array(data.apply(lambda a,b: np.sqrt(np.sum((a-b)**2)), args = [new_centroids.iloc[i,:]], axis=1))
-        min_v , min_index = np.array(distances.min(axis = 1)) , np.array(distances.idxmin(axis = 1))
-      data['centroid'], errors = min_index , min_v
+        distances[:,i] = np.sqrt(np.sum(np.square(np.subtract(data[:,0:p], np.atleast_2d(new_centroids[i,:p]))), axis=1))
+
+      min_v , min_index = np.amin(distances, axis=1) , np.argmin(distances, axis=1)
+      data[:,p], errors = min_index , min_v
       error = np.append(error, np.sum(errors))
-      new_centroids = data.groupby('centroid').agg('mean').reset_index(drop = True)
+      for i in range(k):
+        group = np.where(data[:,p] == i)[0]
+        assign = data[group,]
+        centroid_i = np.mean(assign, axis=0)
+        new_centroids[i,] = centroid_i
       it += 1
-      if (np.round(new_centroids,1) == np.round(old_centroids,1)).all().all():
-        n_iter = False
+      if it > 2:
+        if (error[it-1] == error[it-2]):
+          n_iter = False
+        else:
+          n_iter = True
       else:
-        old_centroids = new_centroids
         n_iter = True
-      
-    data['errors'] = errors
-    output.append(data)
-    return (data)
+    
+    data = np.c_[ data, np.ones(n) ] 
+    data[:,p+1] = errors
+    data_final = pd.DataFrame(data, 
+             columns=['price', 
+                      'speed',
+                      'hd',
+                      'ram', 
+                      'screen',
+                      'cores',
+                      'centroid',
+                      'errors'])
+    
+    output.append(data_final)
+    return data_final
 
 if __name__ == "__main__":
 
   # Load the dataset. We discard the index (first column) and categorical variables
-  data_read = pd.read_csv("computers5k.csv").drop(['id', 'laptop', 'cd', 'trend'], axis=1) 
+  data_read = pd.read_csv("computers500k.csv").drop(['id', 'laptop', 'cd', 'trend'], axis=1) 
 
   # Standarize data
   data_norm = data_read.apply(lambda x: (x-x.mean())/ x.std())
@@ -136,9 +158,4 @@ if __name__ == "__main__":
   plt.xlabel("Variables", size = 16,)
   plt.ylabel("Centroids", size = 16)
   sns.heatmap(data_kmeans_we.groupby('centroid').agg('mean').reset_index(drop = True))
-  plt.show()
-
-len(output)
-
-thread
-
+  plt.show() 

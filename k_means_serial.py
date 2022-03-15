@@ -9,14 +9,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import time
-import multiprocessing as mp
 
 # Implement k-means algorithm
 def k_means(dataset, k):
     '''
-    It computes several iterations relocating centroids to achieve the final distribution of clusters. The algorithm stops when the centroids of
-    te iteration i and the ones of the iteration i-1 match. This will be the way to convergence. The function returns the input dataset adding up 
-    two new variables: the assignment and the errors associated.
+    It computes several iterations relocating centroids to achieve the final distribution of clusters. The algorithm computes the distance in 
+    each iteration to carry out the assignment.The error is compared in each iteration with the error obtained in the iteration i-1.The function
+    returns the input dataset adding up two new variables: the assignment ("centroid") and the errors associated ("errors").
     
     PARAMETERS:
     "dataset": dataset
@@ -24,100 +23,123 @@ def k_means(dataset, k):
     '''
 
     data = dataset.copy()
-
-    # Initialize centroids and error.
-    n = data.shape[0]
-    new_centroids = data.sample(n=k, random_state=100).reset_index(drop=True) # Select random observations as initial centroids.
-    error = np.array([])
     it = 0
-    n_iter = True
-    old_centroids = np.zeros((k, data.shape[1]))
 
+    # Initialize centroids and error. We handle with NumPy vectors and matrices instead of objects of the library Pandas Dataframe
+    # because of the difference on the performance. 
+    n , p = data.shape[0] , data.shape[1]
+    new_centroids = np.array(data.sample(n=k, random_state = 100).reset_index(drop=True)) # Select random observations as initial centroids.
+    new_centroids = np.c_[ new_centroids, np.ones(new_centroids.shape[0]) ] 
+    error = np.array([])
+    n_iter = True
+    data = data.to_numpy()
+    data = np.c_[data, np.ones(data.shape[0])] #Create the new column to host the new variable "centroid"
     while(n_iter):
       errors = np.array([n])
-      distances = pd.DataFrame()
+      distances = np.zeros((n, k))
       for i in range(k): 
-        distances.loc[:,i] = np.array(data.apply(lambda a,b: np.sqrt(np.sum((a-b)**2)), args = [new_centroids.iloc[i,:]], axis=1))
-        min_v , min_index = np.array(distances.min(axis = 1)) , np.array(distances.idxmin(axis = 1))
-      data['centroid'], errors = min_index , min_v
-      error = np.append(error, np.sum(errors))
-      new_centroids = data.groupby('centroid').agg('mean').reset_index(drop = True)
+        # We compute the euclidean distance and host the results in as many columns as k 
+        distances[:,i] = np.sqrt(np.sum(np.square(np.subtract(data[:,0:p], np.atleast_2d(new_centroids[i,:p]))), axis=1))
+
+      # We obtain the minimum distance and the index associated (the cluster associated)
+      min_v , min_index = np.amin(distances, axis=1) , np.argmin(distances, axis=1)
+      data[:,p], errors = min_index , min_v
+      error = np.append(error, np.sum(errors)) #total error
+      for i in range(k):
+        # We calculate the new centroids
+        assign = data[np.where(data[:,p] == i)[0],] 
+        new_centroids[i,] = np.mean(assign, axis=0)
       it += 1
-      if (np.round(new_centroids,1) == np.round(old_centroids,1)).all().all():
-        n_iter = False
+      if it > 2:
+        # We compare the error i with error i-1
+        if (error[it-1] == error[it-2]):
+          n_iter = False
+        else:
+          n_iter = True
       else:
-        old_centroids = new_centroids
         n_iter = True
-      
-    data['errors'] = errors
-    return (data)
+    
+    # We create the DataFrame which will be returned with the new two columns
+    data = np.c_[ data, np.ones(n) ] 
+    data[:,p+1] = errors
+    data_final = pd.DataFrame(data, 
+             columns=['price', 
+                      'speed',
+                      'hd',
+                      'ram', 
+                      'screen',
+                      'cores',
+                      'centroid',
+                      'errors'])
+    return (data_final)
 
-# Load the dataset. We discard the index (first column) and categorical variables
-data_read = pd.read_csv("computers5k.csv").drop(['id', 'laptop', 'cd', 'trend'], axis=1) 
+if  __name__ == "__main__":
+  # Load the dataset. We discard the index (first column) and categorical variables
+  data_read = pd.read_csv("computers500k.csv").drop(['id', 'laptop', 'cd', 'trend'], axis=1) 
 
-# Standarize data
-data_norm = data_read.apply(lambda x: (x-x.mean())/ x.std())
+  # Standarize data
+  data_norm = data_read.apply(lambda x: (x-x.mean())/ x.std())
 
-#Elbow Graph.
-print("-----------------------------------------------------------------------------------------------------------------------------------")
-print("------------------------------------------------ ELBOW GRAPH ----------------------------------------------------------------------")
-print("-----------------------------------------------------------------------------------------------------------------------------------")
+  #Elbow Graph.
+  print("-----------------------------------------------------------------------------------------------------------------------------------")
+  print("------------------------------------------------ ELBOW GRAPH ----------------------------------------------------------------------")
+  print("-----------------------------------------------------------------------------------------------------------------------------------")
 
-n = 5
-start = time.time()
-squares = [np.sum((k_means(data_norm,i+1))['errors']) for i in range(n)]
-end = time.time()
-print("Time elapsed:",end - start,"seconds")
-plt.figure(figsize=(10,5))
-plt.title("Elbow Graph")
-plt.xlabel("Number of clusters (k) ", size = 16,)
-plt.ylabel("WSS", size = 16)
-plt.plot(range(1,n+1), squares)
-plt.show()
+  n = 5
+  start = time.time()
+  squares = [np.sum((k_means(data_norm,i+1))['errors']) for i in range(n)] #We sustract the errors associated in each iteration
+  end = time.time()
+  print("Time elapsed:",end - start,"seconds")
+  plt.figure(figsize=(10,5))
+  plt.title("Elbow Graph")
+  plt.xlabel("Number of clusters (k) ", size = 16,)
+  plt.ylabel("WSS", size = 16)
+  plt.plot(range(1,n+1), squares)
+  plt.show()
 
-print("-----------------------------------------------------------------------------------------------------------------------------------")
-print("------------------------------ The optimal value for k is 2. We run the algorith with k = 2 ---------------------------------------")
-print("-----------------------------------------------------------------------------------------------------------------------------------")
+  print("-----------------------------------------------------------------------------------------------------------------------------------")
+  print("------------------------------ The optimal value for k is 2. We run the algorith with k = 2 ---------------------------------------")
+  print("-----------------------------------------------------------------------------------------------------------------------------------")
 
-# k=2, optimal clusters number
-# Run the algorithm with k=2
-# We measure time 
-k_final = 2
-start = time.time()
-data_kmeans = k_means(data_norm, k_final)
-end = time.time()
-print("Time elapsed:",end - start,"seconds")
+  # k=2, optimal clusters number
+  # Run the algorithm with k=2
+  # We measure time 
+  k_final = 2
+  start = time.time()
+  data_kmeans = k_means(data_norm, k_final)
+  end = time.time()
+  print("Time elapsed:",end - start,"seconds")
 
-print("-----------------------------------------------------------------------------------------------------------------------------------")
-print("------------------------------------------------ We plot the first two dimensions -------------------------------------------------")
-print("-----------------------------------------------------------------------------------------------------------------------------------")
+  print("-----------------------------------------------------------------------------------------------------------------------------------")
+  print("------------------------------------------------ We plot the first two dimensions -------------------------------------------------")
+  print("-----------------------------------------------------------------------------------------------------------------------------------")
 
-# Plot the first two dimensions of the clusters
-plt.figure(figsize=(10,5))
-plt.title("First two dimensions")
-plt.xlabel("Price ", size = 16,)
-plt.ylabel("Speed", size = 16)
-sns.scatterplot(x="price", y="speed", hue="centroid", data=data_kmeans.drop("errors", axis = 1))
-plt.show()
+  # Plot the first two dimensions of the clusters
+  plt.figure(figsize=(10,5))
+  plt.title("First two dimensions")
+  plt.xlabel("Price ", size = 16,)
+  plt.ylabel("Speed", size = 16)
+  sns.scatterplot(x="price", y="speed", hue="centroid", data=data_kmeans.drop("errors", axis = 1))
+  plt.show()
 
-print("-----------------------------------------------------------------------------------------------------------------------------------")
-print("------------------------------------------------ The the cluster with the highest average price -----------------------------------")
-print("-----------------------------------------------------------------------------------------------------------------------------------")
+  print("-----------------------------------------------------------------------------------------------------------------------------------")
+  print("------------------------------------------------ The the cluster with the highest average price -----------------------------------")
+  print("-----------------------------------------------------------------------------------------------------------------------------------")
 
-# We see the cluster with largest average price
-mean = []
-for i in range(k_final-1):
-  mean.append(np.mean(data_kmeans['price'].loc[(data_kmeans.centroid == i)]))
-  print("The cluster with the largest average price is", mean.index(max(mean)), ",with mean", min(mean))
+  # We see the cluster with largest average price
+  mean = []
+  for i in range(k_final):
+    mean.append(np.mean(data_kmeans['price'].loc[(data_kmeans.centroid == i)]))
+  print("The cluster with the largest average price is", mean.index(max(mean)), ",with mean", max(mean))
 
-print("-----------------------------------------------------------------------------------------------------------------------------------")
-print("-------------------------------------------------------- HEAT MAP -----------------------------------------------------------------")
-print("-----------------------------------------------------------------------------------------------------------------------------------")
-# Print the heat map
-data_kmeans_we = data_kmeans.drop("errors", axis = 1)
-plt.figure(figsize=(10,5))
-plt.title("Heat map")
-plt.xlabel("Variables", size = 16,)
-plt.ylabel("Centroids", size = 16)
-sns.heatmap(data_kmeans_we.groupby('centroid').agg('mean').reset_index(drop = True))
-plt.show() 
+  print("-----------------------------------------------------------------------------------------------------------------------------------")
+  print("-------------------------------------------------------- HEAT MAP -----------------------------------------------------------------")
+  print("-----------------------------------------------------------------------------------------------------------------------------------")
+  # Print the heat map
+  data_kmeans_we = data_kmeans.drop("errors", axis = 1)
+  plt.figure(figsize=(10,5))
+  plt.title("Heat map")
+  plt.xlabel("Variables", size = 16,)
+  plt.ylabel("Centroids", size = 16)
+  sns.heatmap(data_kmeans_we.groupby('centroid').agg('mean').reset_index(drop = True))
+  plt.show() 
