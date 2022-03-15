@@ -11,7 +11,7 @@ data.columns.values
 # 1 - Most picked-up zones per hour
 fst_analysis=data.loc[:,["PULocationID","tpep_pickup_datetime"]]
 fst_analysis.min()
-
+dt=pd.to_datetime(fst_analysis['tpep_pickup_time'])
 fst_analysis['tpep_pickup_time']=fst_analysis['tpep_pickup_datetime'].apply(lambda x: x.split(' ')[1])
 fst_analysis['hour']=pd.cut(x=fst_analysis['tpep_pickup_time'],bins=["00:00:00","06:00:00","12:00:00","18:00:00","23:59:59"])
 
@@ -26,15 +26,13 @@ snd_analysis
 
 
 
-# 3 - type pf payment in terms od hours
-
 
 # 4 - Type of payment in term of drop-off zone
 fourth_analysis=data.loc[:,['DOLocationID','payment_type','total_amount']]
-groups=fourth_analysis.groupby('payment_type')
+#groups=fourth_analysis.groupby('payment_type')
 
-group1=groups.get_group(1)
-group2=groups.get_group(2)
+#group1=groups.get_group(1)
+#group2=groups.get_group(2)
 
 df=fourth_analysis.groupby(['DOLocationID','payment_type'])['total_amount'].mean()
 
