@@ -1,5 +1,5 @@
 ##############################################################################################################################################
-######################################################  PART 1: SERIAL VERSION. OPTION A  ####################################################
+##############################################  PART 1:  Parallel implementation, multiprocessing.  ##################################
 ##############################################################################################################################################
 
 # Import libraries 
@@ -9,13 +9,14 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import time
 import multiprocessing as mp
+from itertools import repeat
 
 # Implement k-means algorithm
 def k_means(dataset, k):
     '''
-    It computes several iterations relocating centroids to achieve the final distribution of clusters. The algorithm stops when the centroids of
-    te iteration i and the ones of the iteration i-1 match. This will be the way to convergence. The function returns the input dataset adding up 
-    two new variables: the assignment and the errors associated.
+    It computes several iterations relocating centroids to achieve the final distribution of clusters. The algorithm computes the distance in 
+    each iteration to carry out the assignment.The error is compared in each iteration with the error obtained in the iteration i-1.The function
+    returns the input dataset adding up two new variables: the assignment ("centroid") and the errors associated ("errors").
     
     PARAMETERS:
     "dataset": dataset
@@ -25,30 +26,33 @@ def k_means(dataset, k):
     data = dataset.copy()
     it = 0
 
-    # Initialize centroids and error.
+    # Initialize centroids and error. We handle with NumPy vectors and matrices instead of objects of the library Pandas Dataframe
+    # because of the difference on the performance. 
     n , p = data.shape[0] , data.shape[1]
-    new_centroids = np.array(data.sample(n=k).reset_index(drop=True)) # Select random observations as initial centroids.
+    new_centroids = np.array(data.sample(n=k, random_state = 100).reset_index(drop=True)) # Select random observations as initial centroids.
     new_centroids = np.c_[ new_centroids, np.ones(new_centroids.shape[0]) ] 
     error = np.array([])
     n_iter = True
     data = data.to_numpy()
-    data = np.c_[data, np.ones(data.shape[0])] 
+    data = np.c_[data, np.ones(data.shape[0])] #Create the new column to host the new variable "centroid"
     while(n_iter):
       errors = np.array([n])
       distances = np.zeros((n, k))
       for i in range(k): 
+        # We compute the euclidean distance and host the results in as many columns as k 
         distances[:,i] = np.sqrt(np.sum(np.square(np.subtract(data[:,0:p], np.atleast_2d(new_centroids[i,:p]))), axis=1))
 
+      # We obtain the minimum distance and the index associated (the cluster associated)
       min_v , min_index = np.amin(distances, axis=1) , np.argmin(distances, axis=1)
       data[:,p], errors = min_index , min_v
-      error = np.append(error, np.sum(errors))
+      error = np.append(error, np.sum(errors)) #total error
       for i in range(k):
-        group = np.where(data[:,p] == i)[0]
-        assign = data[group,]
-        centroid_i = np.mean(assign, axis=0)
-        new_centroids[i,] = centroid_i
+        # We calculate the new centroids
+        assign = data[np.where(data[:,p] == i)[0],] 
+        new_centroids[i,] = np.mean(assign, axis=0)
       it += 1
       if it > 2:
+        # We compare the error i with error i-1
         if (error[it-1] == error[it-2]):
           n_iter = False
         else:
@@ -56,6 +60,7 @@ def k_means(dataset, k):
       else:
         n_iter = True
     
+    # We create the DataFrame which will be returned with the new two columns
     data = np.c_[ data, np.ones(n) ] 
     data[:,p+1] = errors
     data_final = pd.DataFrame(data, 
@@ -81,12 +86,15 @@ if __name__ == "__main__":
   print("-----------------------------------------------------------------------------------------------------------------------------------")
   print("------------------------------------------------ ELBOW GRAPH ----------------------------------------------------------------------")
   print("-----------------------------------------------------------------------------------------------------------------------------------")
-
+  
+  # We try to use pool.apply() but the performance did not improve at all. We try to use pool.map()
+  # redefining the main function. However, the performance did improve considerably using pool.starmap()
+  # and maintaining constant the argument data. We use zip() to aggregate the iterables in a tuple.
   n = 5
   start = time.time()
-  pool = mp.Pool(mp.cpu_count())
-  squares_mp = [pool.apply(k_means, args=(data_norm, i+1)) for i in range(n)]
-  pool.close() 
+  pool = mp.Pool(int(mp.cpu_count()/2))
+  squares_mp = list(pool.starmap(k_means, zip(repeat(data_norm), range(1,6))))
+  pool.close()
   end = time.time()
   list_errors = [sum(squares_mp[i]['errors']) for i in range(n)]
   print("Time elapsed:",end - start,"seconds")

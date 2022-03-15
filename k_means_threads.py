@@ -9,18 +9,16 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import time
-import multiprocessing as mp
-from itertools import repeat
 import threading as th
 
 
 
 # Implement k-means algorithm
-def k_means(dataset, k, output):
+def k_means(dataset, k, errors_elbow):
     '''
-    It computes several iterations relocating centroids to achieve the final distribution of clusters. The algorithm stops when the centroids of
-    te iteration i and the ones of the iteration i-1 match. This will be the way to convergence. The function returns the input dataset adding up 
-    two new variables: the assignment and the errors associated.
+    It computes several iterations relocating centroids to achieve the final distribution of clusters. The algorithm computes the distance in 
+    each iteration to carry out the assignment.The error is compared in each iteration with the error obtained in the iteration i-1.The function
+    returns the input dataset adding up two new variables: the assignment ("centroid") and the errors associated ("errors").
     
     PARAMETERS:
     "dataset": dataset
@@ -30,30 +28,33 @@ def k_means(dataset, k, output):
     data = dataset.copy()
     it = 0
 
-    # Initialize centroids and error.
+    # Initialize centroids and error. We handle with NumPy vectors and matrices instead of objects of the library Pandas Dataframe
+    # because of the difference on the performance. 
     n , p = data.shape[0] , data.shape[1]
     new_centroids = np.array(data.sample(n=k, random_state = 100).reset_index(drop=True)) # Select random observations as initial centroids.
     new_centroids = np.c_[ new_centroids, np.ones(new_centroids.shape[0]) ] 
     error = np.array([])
     n_iter = True
     data = data.to_numpy()
-    data = np.c_[data, np.ones(data.shape[0])] 
+    data = np.c_[data, np.ones(data.shape[0])] #Create the new column to host the new variable "centroid"
     while(n_iter):
       errors = np.array([n])
       distances = np.zeros((n, k))
       for i in range(k): 
+        # We compute the euclidean distance and host the results in as many columns as k 
         distances[:,i] = np.sqrt(np.sum(np.square(np.subtract(data[:,0:p], np.atleast_2d(new_centroids[i,:p]))), axis=1))
 
+      # We obtain the minimum distance and the index associated (the cluster associated)
       min_v , min_index = np.amin(distances, axis=1) , np.argmin(distances, axis=1)
       data[:,p], errors = min_index , min_v
-      error = np.append(error, np.sum(errors))
+      error = np.append(error, np.sum(errors)) #total error
       for i in range(k):
-        group = np.where(data[:,p] == i)[0]
-        assign = data[group,]
-        centroid_i = np.mean(assign, axis=0)
-        new_centroids[i,] = centroid_i
+        # We calculate the new centroids
+        assign = data[np.where(data[:,p] == i)[0],] 
+        new_centroids[i,] = np.mean(assign, axis=0)
       it += 1
       if it > 2:
+        # We compare the error i with error i-1
         if (error[it-1] == error[it-2]):
           n_iter = False
         else:
@@ -61,6 +62,7 @@ def k_means(dataset, k, output):
       else:
         n_iter = True
     
+    # We create the DataFrame which will be returned with the new two columns
     data = np.c_[ data, np.ones(n) ] 
     data[:,p+1] = errors
     data_final = pd.DataFrame(data, 
@@ -72,9 +74,9 @@ def k_means(dataset, k, output):
                       'cores',
                       'centroid',
                       'errors'])
-    
-    output.append(data_final)
-    return data_final
+
+    errors_elbow.append(data_final)
+    return (data_final)
 
 if __name__ == "__main__":
 
@@ -89,13 +91,17 @@ if __name__ == "__main__":
   print("------------------------------------------------ ELBOW GRAPH ----------------------------------------------------------------------")
   print("-----------------------------------------------------------------------------------------------------------------------------------")
   
+  # Here we apply threads from threading library to parallelize the algorithm. We use as many threads 
+  # as k times the algoritm will be executed. We are aware of the performance is not very optimized in 
+  # Python. It has needed to create a global variable redefining the main function and adding up the 
+  # argument "elbow_errors". It is the list which contain the results of all the threads created.
   start = time.time()
   n = 5
   threads = []
-  output = []
+  errors_elbow = []
 
   for i in range(1,n+1):
-    thread = th.Thread(target=k_means,args=(data_norm, i, output))
+    thread = th.Thread(target=k_means,args=(data_norm, i, errors_elbow))
     threads.append(thread)
 
   for thread  in threads:
@@ -104,7 +110,7 @@ if __name__ == "__main__":
       thread.join()   
   end = time.time()
   
-  list_errors = [sum(output[i]['errors']) for i in range(n)]
+  list_errors = [sum(errors_elbow[i]['errors']) for i in range(n)]
   print("Time elapsed:",end - start,"seconds")
   plt.figure(figsize=(10,5))
   plt.title("Elbow Graph")
@@ -122,7 +128,7 @@ if __name__ == "__main__":
   # We measure time 
   k_final = 2
   start = time.time()
-  data_kmeans = k_means(data_norm, k_final, output)
+  data_kmeans = k_means(data_norm, k_final, errors_elbow)
   end = time.time()
   print("Time elapsed:",end - start,"seconds")
 
