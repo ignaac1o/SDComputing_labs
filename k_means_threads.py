@@ -92,9 +92,9 @@ if __name__ == "__main__":
   print("-----------------------------------------------------------------------------------------------------------------------------------")
   
   # Here we apply threads from threading library to parallelize the algorithm. We use as many threads 
-  # as k times the algoritm will be executed. We are aware of the performance is not very optimized in 
+  # as k times the algorithm will be executed. We are aware of the performance is not very optimized in 
   # Python. It has needed to create a global variable redefining the main function and adding up the 
-  # argument "elbow_errors". It is the list which contain the results of all the threads created.
+  # argument "elbow_errors". It is the list which contains the results of all the threads created.
   start = time.time()
   n = 5
   threads = []
