@@ -1,0 +1,127 @@
+---
+title: "Laboratory 2 - Memory"
+author: "Alberto José Díaz Cuenca, Ignacio Almodóvar Cárdenas and Javier Muñoz Flores"
+date: "18/3/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# General aspects for all studies 
+
+First, we use *time()* function from *time* module to measure the execution time for both serial and parallel versions. Moreover, regarding the parallel version code of each study, it is suitable to configure the Spark session correctly. To achieve that, it is strongly recommendable to indicate the parameter of number of cores in *.master("local[parameter])* when yo create the Spark session. The number of cores selected depends on the laptop in which you execute the code. In our case, we use 7 cores and the laptop in which the codenippets were executed has 8 cores. It is because it is important to reserve one core to the operating system as it has to run high-priority tasks.
+
+
+In addition, we have noted that *PySpark* has not efficient functionality to plot as there have not optimized modules to carry out data visualization. Therefore, the execution time increases a lot with the addition of PySpark plots, as as *Spark* does not include any option to plot directly. Only some functions to operate with *rdd* objects allow to build histograms but it is not very efficient as we work with *datFrame* objects. Thus, the best option would be to bring the data out of the Spark context and use other libraries like *Matplotlib* to plot. 
+
+
+## Study 1: Number of picked up travels per time zone
+
+The aim of this study is to count the number of taxis picked up by daily time slot. For this purpose it is necessary to use the variable *tpep_pickup_datetime* as it contains the date and time in which the taxis were picked up. The objective is extract the hour from this variable and create categories related to hour in which the taxi collected people.
+
+The dataset has instances of taxis which took up people in the 24 hours of the day. For this reason, we believe that it has more sense to convert the new attribute, which contains the hours, to a categorical variable. Thus, we can analyze the number of taxis in each phase of the day. Then, the new variable contains the following categories:
+
+ - Night (*N*)
+ - Morning (*M*)
+ - Afternoon (*A*)
+ - Evening (*E*)
+
+
+### Serial version
+
+For carrying out the serial version of the study we have used functions of *Pandas* and *NumPy* libraries. In general, the proceed has consisted in three main steps:
+
+1. Transform the format of the data variable (which is in *string* format) to *datetime* format with *astype()* function.
+
+2. Extract the hour from the variable *tpep_pickup_datetime* with *pandas.Series.dt.hour* function from *Pandas* library and keep it in a new variable called *tpep_pickup_hour*.
+
+3. Transform the column created into a categorical feature with four string levels: *N*, *M*, *A* and *E*. We have achieved that using *numpy.select* function from *NumPy* library which allows to change the values of an array depending on some conditions. The conditions have been:
+
+ - From 0:00h to 5:59h: Night (*N*)
+ - From 6:00h to 11:59h: Morning (*M*)
+ - From 12:00h to 17:59h: Afternoon (*A*)
+ - From 18:00h to 23:59: Evening (*E*)
+ 
+4. Finally, we print the number of observations for each category with *pandas.Series.value_counts()* from *Pandas* library.
+
+### Parallelize version with PySpark
+
+The proceed is the same as before but now using functions provided by *PySark*. Mainly, we use functions of the *pyspark.sql* module as we handle with *pyspark.sql.DataFrame* objects. 
+
+The changes respect to the serial version in each of the steps described previously are:
+
+1. The format change now is achieved using *withColumn* function which allows to adding a column or replacing the existing column of the *DataFrame*. The format change is carried out with *to_timestap* from *pyspark.sql.functions* module.
+
+3. The creation of the new categorical column is done with *when()* function, which is analogous to *numpy.select* of serial version.
+
+4. Finally, we group the instances by categories with *groupBy()* and then we count them using *count()*.
+
+
+## Study 2: Taxes influence in payments
+
+This study is about taxes and how much effect they have in the total payment amount given to the taxi drivers. We studied the mean value of the sum of every variable that is considered for the total amount of the payment leaving aside the taxes variable. After that, we studied the mean value of this tax variable. The ways to implement this in Python and Pyspark are slightly different, and we are going to see how to do it in each of them
+
+### Serial version
+
+We selected the columns we needed from the dataframe. Therefore, we selected all the columns related to payment, except for the taxes column and added them together
+
+Now, thanks to the python function .mean(), we computed the mean of these observations. After that, we compare this value to the mean of the total amount. 
+
+We could see that there is a difference of close to 0.5 dollars between these amounts, meaning that the fraction of the total amount spent in taxes is close to 0.5$ for every trip. We check this fact again with the mean() function now applied to the column of the taxes payment.
+
+Obviously, the result obtained matches with the previous one, a value close to 0.5$ (0.4974637874404095).
+
+### Parallelize version with PySpark
+
+In order to compute the means in pyspark, we first used the count() function from pyspark.sql and counted the number of observations in the rdd object created. After that, we created a function that computes the sum of every variable excluding the taxes column and then sum them together. Then, we divided this value by the number of elements calculated with count() and we obtained the mean value. Of course, even though the procedure is slightly different, the result obtained is equal to the one obtained in the serial version.
+
+To compute the mean value of taxes, we applied a function similar to the previous one, but this time using directly the function avg() which computes the average of the column. Like that, we obtained the same value as in the serial version, approximately 0.5$.  
+
+## Study 3: Type of payment in terms of different pick-up zones.
+
+For this third analysis we want to know and visualize the mean price per type of payment and pick-up zones.
+
+First of all we have to understand the data given. In this case we are just going to work with three of the columns available in the dataset:
+
+-	“DOLocationID”: It indicates the number of the drop-off zone. It is a continuous variable with numbers between 1 and 265.
+-	“payment_type”: Categorical variable that indicates the type of payment. 
+  -	Credit Card "1"
+  -	Cash "2"
+  - No charge "3"
+  - Dispute "4"
+-	“total_amount”: Continuous variable with the total price to pay for the travel.
+
+Once we have our variables to analyze clear, we are going to split the study in two part. The first one will see what is the mean price per zone and type of payment of all the different travels. In the second part we are going to see the how the price depending on the type of payment is distributed.
+
+### Serial version
+
+For this part we are going to use the most common libraries used in Python, *Pandas* and *MatplotLib*.
+
+We are first going to select the columns that we want to work with and reduce the *dataFrame* dimension using *Pandas*. Then we will group the dataset into Location zone and type of payment and calculate the mean price for each group.
+
+This can easily be done with the *pandas* function *groupby()* and adding more functions to calculate the mean and plot it all together.
+
+The second part is basically the same but this time we will only group the data by type of payment saving the amount of each trip. Then we will plot its density.
+
+
+### Parallelize version with PySpark
+
+Now we are going to do the same steps that we did before but working directly on Spark objects. 
+
+There are several functions to work with sparks that do basically the same as the ones seen in *Pandas*. We basically apply the function and calculate again the average price amount.
+
+However, the object returned in this case is not the same as the one returned by the pandas function. For this case we have to collect the object which is a spark list and plot it using *Matplotlib*. To plot the object, we created a loop that gives colors for different type of payments and plots its points for type of zone and mean price.
+
+Notice that we have also used some *Spark* function like *where()* and *select()* to drop observations and columns.
+
+For the second part we again took the just the two columns that we were going to use and group them again, this time we are going use the function *groupByKey()* that allows to work with pairs of column. Now it will create a list that iterates between keys (type of payment) and values (price per observation).
+
+Again, there is not a direct way to plot the object returned by the spark function so therefore we have created a loop that computes the density distribution for each type of payment.
+
+# Conclusion
+
+
+
+
