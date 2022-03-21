@@ -1,4 +1,6 @@
 
-*.rdx
+.Rhistory
+.Rhistory
 *.RData
-*.rdb
+*.rdx
+Memory_cache/latex/unnamed-chunk-11_718c2327b2de7726272c2f2aaf3eac6d.rdb
