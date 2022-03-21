@@ -7,14 +7,14 @@ library(microbenchmark)
 
 set.seed(13)
 
-data5k=read.csv(file = "computers500k.csv",header = T)
+data5k=read.csv(file = "computers5k.csv",header = T)
 data5k$id = NULL
 data5k$cd %<>% mapvalues(from = c("yes","no"), to = c("1","0"))  %>% as.factor()
 data5k$laptop %<>% mapvalues(from = c("yes","no"), to = c("1","0")) %>% as.factor()
 data5k$trend %<>% as.factor() 
 summary(data5k)
 
-#kmeans only works with numeric vectors
+#kmeans only work with numeric vectors
 data_wo_factors = data5k %>% dplyr::select(c(-cd,-laptop,-trend))
 
 ############## K means DIY Process #####################
@@ -28,65 +28,79 @@ euclidian=function(a,b){
   sqrt(sum((a-b)^2))
 }
 
-kmeans_diy=function(data,k){
-  kmeans_data=as.matrix(scale(data_wo_factors))
-  colX=ncol(kmeans_data)
-  rowX=k
-  X=matrix(ncol = colX,nrow = rowX)
-  for(i in 1:rowX){
-    X[i,]=apply(X=kmeans_data,MARGIN = 2,generate_random)
+knn_diy=function(data,k){
+  
+  #Scale data
+  knn_data=as.data.frame(scale(data))
+  n=ncol(knn_data)
+  #Generate random centroids
+  X=matrix(nrow=k,ncol=(n+1))
+  #clusters=letters[1:k]
+  for (i in 1:nrow(X)) {
+    for(j in 1:n){
+      X[i,j]=generate_random(knn_data[,j]) 
+    }
   }
-  X=cbind(X,1:2)
-  centroids_equal=FALSE
-  x=matrix(ncol=k,nrow=nrow(kmeans_data))
-  ncolX=ncol(X)
-  nrowkmeans=nrow(kmeans_data)
-  count=0
-  err=0
-  while(centroids_equal==FALSE){
-    count=count+1
-    x=matrix(ncol=k,nrow=nrow(kmeans_data))
-    for(i in seq_len(k)){
-      x[,i]=apply(X=kmeans_data,MARGIN = 1,FUN = euclidian,b=X[i,-ncolX])
-    }
-    cluster=c()
-    error=c()
-    for(i in 1:nrowkmeans){
-      error[i]<-min(x[i,])
-      cluster[i]<-which(x[i,]==min(x[i,]))
-    }
-    
-    kmeans_data=cbind(kmeans_data,error,cluster)
-    #kmeans_data$cluster=cluster
-    #kmeans_data$error=error
-    
-    X_new = kmeans_data %>% as.data.frame() %>% group_by(cluster) %>% 
+  X[,n+1]=as.factor(letters[1:k])
+  
+  
+  #Compute Distances
+  n=ncol(knn_data)
+  m=nrow(X)
+  nX=ncol(X)
+  x=matrix(nrow = nrow(knn_data),ncol = m)
+  for(i in 1:m){
+    x[,i]=apply(X =knn_data,MARGIN = 1,FUN = euclidian,b=X[i,-nX])
+  }
+  for(i in 1:nrow(knn_data)){
+    knn_data$error[i]<-min(x[i,])
+    knn_data$cluster[i]<-which(x[i,]==min(x[i,]))
+  }
+  x=NULL
+
+  #Check errors
+  error=c(0,sum(knn_data$error))
+  e=2
+  
+  while(round(error[e],0)!= round(error[e-1],0)){
+    #Recode Clusters
+    #knn_data$cluster %<>% as.factor() 
+    X= knn_data %>% group_by(cluster) %>% 
       dplyr::summarize(price=mean(price),
-                       speed=mean(speed),
-                       hd=mean(hd),
-                       ram=mean(ram),
-                       screen=mean(screen),
-                       cores=mean(cores)) %>% 
+                speed=mean(speed),
+                hd=mean(hd),
+                ram=mean(ram),
+                screen=mean(screen),
+                cores=mean(cores)) %>% 
       mutate(n_centroide=cluster) %>% 
       select(-cluster) %>% 
-      ungroup() %>% as.matrix
+      ungroup() %>% as.data.frame(.)
     
-    
-    #if(all_equal(round(X_new,3),round(X,3))==TRUE){
-    if(round(sum(error),0)==round(err,0)){
-      centroids_equal=TRUE
-    }else{
-      X=X_new
-      kmeans_data=kmeans_data[,-(7:8)]
-      #kmeans_data$cluster=NULL
-      #kmeans_data$error=NULL
-      err=sum(error)
-      X_new=NULL
-      x=NULL
+    #Compute distances
+    n=ncol(knn_data)-2
+    m=nrow(X)
+    nX=ncol(X)
+    x=matrix(nrow = nrow(knn_data),ncol = m)
+    for(i in 1:m){
+      x[,i]=apply(X =knn_data[,-c(7,8)],MARGIN = 1,FUN = euclidian,b=X[i,-nX])
     }
-    print(count)
-  } 
-  return(as.data.frame(kmeans_data))
+    for(i in 1:nrow(knn_data)){
+      knn_data$error[i]<-min(x[i,])
+      knn_data$cluster[i]<-which(x[i,]==min(x[i,]))
+    }
+    x=NULL
+    
+    #Write error
+    error=c(error,sum(knn_data$error))
+  
+    #Next iteration
+    e=e+1
+    #
+    print(error)
+    #
+  }
+  
+  return(knn_data)
 }
 
 # 1.- Construct the elbow graph and find the optimal clusters number (k).
@@ -94,25 +108,23 @@ kmeans_diy=function(data,k){
 # 2.- Implement the k-means algorithm
 
 obtain_k_optimal_serial=function(data,k){
-  k_means=NULL
+  knn=NULL
   for (i in 1:k) {
-    k_means[i]=list(kmeans_diy(data,i))
+    knn[i]=list(knn_diy(data,i))
   }
-  return(k_means)
+  return(knn)
 }
 
-# 4.- Measure time
 
 start=Sys.time()
-k_means = obtain_k_optimal_serial(data_wo_factors,5)
+knn=obtain_k_optimal_serial(data_wo_factors,5)
 stop=Sys.time()
 
-# 5.- Elbow graph.
 
 x=NULL
 y=NULL
-for (i in 1:length(k_means)) {
-  y[i]=sum(k_means[[i]]$error)
+for (i in 1:length(knn)) {
+  y[i]=sum(knn[[i]]$error)
   x[i]=i
 }
 
@@ -128,7 +140,7 @@ ggplot(data = df, aes(x=x,y=y)) + geom_point() + geom_line() #Elbow GRaph sugges
 
 # 6.- Plot the first 2 dimensions of the clusters
 
-ggplot(k_means[[2]],aes(x=price,y=speed,color=as.factor(cluster))) + geom_point()
+ggplot(knn[[2]],aes(x=price,y=speed,color=as.factor(cluster))) + geom_point()
 
 # 7.- Find the cluster with the highest average price and print it.
 
@@ -145,12 +157,12 @@ hpricefun <- function(datos){
   return(x)
 }
 
-hpricefun(k_means[[2]])
+hpricefun(knn[[2]])
 
 
 
 #8.- Print a heat map using the values of the clusters centroids.
-clustersum=k_means[[2]] %>% group_by(cluster) %>%  dplyr::summarize(price=mean(price),
+clustersum=knn[[2]] %>% group_by(cluster) %>%  dplyr::summarize(price=mean(price),
                                                                 speed=mean(speed),
                                                                 hd=mean(hd),
                                                                 ram=mean(ram),
