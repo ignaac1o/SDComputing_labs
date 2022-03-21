@@ -9,9 +9,9 @@ library(parallel)
 library(doParallel)
 library(foreach)
 
-set.seed(15)
+set.seed(13)
 
-data5k=read.csv(file = "computers5k.csv",header = T)
+data5k=read.csv(file = "computers500k.csv",header = T)
 data5k$id = NULL
 data5k$cd %<>% mapvalues(from = c("yes","no"), to = c("1","0"))  %>% as.factor()
 data5k$laptop %<>% mapvalues(from = c("yes","no"), to = c("1","0")) %>% as.factor()
@@ -35,80 +35,64 @@ euclidian=function(a,b){
   sqrt(sum((a-b)^2))
 }
 
-knn_diy=function(data,k){
-  
-  #Scale data
-  knn_data=as.data.frame(scale(data))
-  
-  #Generate random centroids
-  X=matrix(nrow=k,ncol=ncol(knn_data)+1)
-  clusters=letters[1:k]
-  for (i in 1:nrow(X)) {
-    for(j in 1:ncol(knn_data)){
-      X[i,j]=generate_random(knn_data[,j]) 
+kmeans_diy_mp=function(data,k){
+  kmeans_data=as.matrix(scale(data_wo_factors))
+  colX=ncol(kmeans_data)
+  rowX=k
+  X=matrix(ncol = colX,nrow = rowX)
+  for(i in 1:rowX){
+    X[i,]=apply(X=kmeans_data,MARGIN = 2,generate_random)
+  }
+  X=cbind(X,1:2)
+  centroids_equal=FALSE
+  x=matrix(ncol=k,nrow=nrow(kmeans_data))
+  ncolX=ncol(X)
+  nrowkmeans=nrow(kmeans_data)
+  count=0
+  err=0
+  while(centroids_equal==FALSE){
+    count=count+1
+    x=matrix(ncol=k,nrow=nrow(kmeans_data))
+    for(i in seq_len(k)){
+      x[,i]=apply(X=kmeans_data,MARGIN = 1,FUN = euclidian,b=X[i,-ncolX])
     }
-  }
-  X[,ncol(knn_data)+1]=as.factor(letters[1:k])
-  
-  
-  #Compute Distances
-  n=ncol(knn_data)
-  m=nrow(X)
-  nX=ncol(X)
-  x=matrix(nrow = nrow(knn_data),ncol = m)
-  for(i in 1:m){
-    x[,i]=apply(X =knn_data,MARGIN = 1,FUN = euclidian,b=X[i,-nX])
-  }
-  for(i in 1:nrow(knn_data)){
-    knn_data$error[i]<-min(x[i,])
-    knn_data$cluster[i]<-which(x[i,]==min(x[i,]))
-  }
-  x=NULL
-
-  #Check errors
-  error=c(0,sum(knn_data$error))
-  e=2
-  
-  while(round(error[e],0)!= round(error[e-1],0)){
-
-    
-    X=as.data.frame(dplyr::ungroup(dplyr::select(plyr::mutate(.data = dplyr::summarize(.data=dplyr::group_by(.data = knn_data,cluster),
-                                                                                       price=mean(price),
-                                                                                       speed=mean(speed),
-                                                                                       hd=mean(hd),
-                                                                                       ram=mean(ram),
-                                                                                       screen=mean(screen),
-                                                                                       cores=mean(cores)),
-                                                              n_centroide=cluster),-cluster)))
-    
-    
-    #Compute distances
-    n=ncol(knn_data)-2
-    m=nrow(X)
-    nX=ncol(X)
-    x=matrix(nrow = nrow(knn_data),ncol = m)
-    for(i in 1:m){
-      x[,i]=apply(X =knn_data[,-c(7,8)],MARGIN = 1,FUN = euclidian,b=X[i,-nX])
+    cluster=c()
+    error=c()
+    for(i in 1:nrowkmeans){
+      error[i]<-min(x[i,])
+      cluster[i]<-which(x[i,]==min(x[i,]))
     }
-    for(i in 1:nrow(knn_data)){
-      knn_data$error[i]<-min(x[i,])
-      knn_data$cluster[i]<-which(x[i,]==min(x[i,]))
+    
+    kmeans_data=cbind(kmeans_data,error,cluster)
+    #kmeans_data$cluster=cluster
+    #kmeans_data$error=error
+    
+    X_new = as.matrix(dplyr::ungroup(dplyr::select(plyr::mutate(.data = dplyr::summarize(.data=dplyr::group_by(.data = as.data.frame(kmeans_data),cluster),
+                                                                                         price=mean(price),
+                                                                                         speed=mean(speed),
+                                                                                         hd=mean(hd),
+                                                                                         ram=mean(ram),
+                                                                                         screen=mean(screen),
+                                                                                         cores=mean(cores)),
+                                                                n_centroide=cluster),-cluster)))
+    
+    
+    #if(all_equal(round(X_new,3),round(X,3))==TRUE){
+    if(round(sum(error),0)==round(err,0)){
+      centroids_equal=TRUE
+    }else{
+      X=X_new
+      kmeans_data=kmeans_data[,-(7:8)]
+      #kmeans_data$cluster=NULL
+      #kmeans_data$error=NULL
+      err=sum(error)
+      X_new=NULL
+      x=NULL
     }
-    x=NULL
-    
-    #Write error
-    error=c(error,sum(knn_data$error))
-    
-    #Next iteration
-    e=e+1
-    #
-    print(e)
-    #
-  }
-  
-  return(knn_data)
+    print(count)
+  } 
+  return(as.data.frame(kmeans_data))
 }
-
 
 
 no_cores=detectCores()
@@ -118,7 +102,7 @@ clusterExport(clust,"generate_random",envir = environment())
 clusterExport(clust,"euclidian",envir = environment())
 
 Start <- Sys.time()
-knn=parLapply(cl = clust,X = 1:5,fun = knn_diy,data=data_wo_factors)
+k_means=parLapply(cl = clust,X = 1:5,fun = kmeans_diy_mp,data=data_wo_factors)
 end <- Sys.time()
 
 
@@ -130,7 +114,7 @@ time <- end - Start
 print(time)
 
 # 3.- Plot the first 2 dimensions of the clusters
-ggplot(knn[[2]],aes(x=price,y=speed,color=as.factor(cluster))) + geom_point()
+ggplot(k_means[[2]],aes(x=price,y=speed,color=as.factor(cluster))) + geom_point()
 
 
 # 4- Find the cluster with the highest average price and print it.
@@ -148,10 +132,10 @@ hpricefun <- function(datos){
   return(x)
 }
 
-hpricefun(knn[[2]]) #The highest price corresponds to the first element of the list (1 cluster).
+hpricefun(k_means[[2]]) #The highest price corresponds to the first element of the list (1 cluster).
 
 # 5.- Print a heat map using the values of the clusters centroids.
-clustersum=knn[[2]] %>% group_by(cluster) %>%  dplyr::summarize(price=mean(price),
+clustersum=k_means[[2]] %>% group_by(cluster) %>%  dplyr::summarize(price=mean(price),
                                                                 speed=mean(speed),
                                                                 hd=mean(hd),
                                                                 ram=mean(ram),
@@ -165,8 +149,8 @@ gplots::heatmap.2(x=clustersum,scale = "none",cexRow = 0.7,trace="none",density.
 # Elbow Graph (no lo pide)
 x=NULL
 y=NULL
-for (i in 1:length(knn)) {
-  y[i]=sum(knn[[i]]$error)
+for (i in 1:length(k_means)) {
+  y[i]=sum(k_means[[i]]$error)
   x[i]=i
 }
 
